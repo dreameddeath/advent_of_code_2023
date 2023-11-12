@@ -3,7 +3,7 @@ use std::time::Instant;
 use crate::utils::{RunOption, DaysRestriction};
 
 mod day1;
-mod day2;
+/*mod day2;
 mod day11;
 mod day12;
 mod day14;
@@ -11,7 +11,7 @@ mod day16;
 mod day19;
 mod day20;
 mod day23;
-mod day24;
+mod day24;*/
 mod utils;
 mod priority_queue;
 
