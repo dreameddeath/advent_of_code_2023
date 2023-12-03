@@ -108,9 +108,16 @@ declare global {
          */
         mapUsingObject<U>(mapObject: U): (U[keyof U])[];
 
-
+        /**
+         * Utilise l'objet fourni tant qu'outil de mapping des valeurs du tableau
+         */
+        filterTyped<U extends T>(fct: ((i: T) => boolean)): U[];
     }
 
+}
+
+Array.prototype.filterTyped = function <T, U extends T>(fct: ((i: T) => i is U)): U[] {
+    return this.filter(fct);
 }
 
 Array.prototype.reverseCopy = function <T>(): Array<T> {
