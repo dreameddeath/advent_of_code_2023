@@ -1,11 +1,11 @@
 
 const start = new Date().getTime();
 import { failures,disableTests } from "./day_utils";
-disableTests();
+//disableTests();
 import "./history/day_01";
 import "./history/day_02";
 import "./history/day_03";
-// import "./history/day_4";
+import "./history/day_04";
 // import "./history/day_5";
 // import "./history/day_6";
 // import "./history/day_7";
