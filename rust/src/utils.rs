@@ -57,7 +57,7 @@ where
 
 fn get_applicable_filename_default(day: &u8, is_test: &Dataset) -> String {
     return format!(
-        "./data/day_{}{}.txt",
+        "./data/day_{}{}.dat",
         day,
         match is_test {
             Dataset::Test => "_test",
@@ -70,7 +70,7 @@ fn get_applicable_filename(day: &u8, part: Option<Part>, is_test: &Dataset) -> S
     return part
         .map(|p| {
             format!(
-                "./data/day_{}_{}{}.txt",
+                "./data/day_{}_{}{}.dat",
                 day,
                 match p {
                     Part::Part1 => 1,
