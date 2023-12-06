@@ -18,11 +18,11 @@ mod priority_queue;
 
 fn main() {
     let start = Instant::now();
-    let days_restriction:DaysRestriction = &Some(vec![3]);
-    //let days_restriction:DaysRestriction = &None;
+    //let days_restriction:DaysRestriction = &Some(vec![3]);
+    let days_restriction:DaysRestriction = &None;
     utils::run_all(&1, &day1::puzzle, RunOption::default(days_restriction));
     utils::run_all(&2, &day2::puzzle, RunOption::default(days_restriction));
-    utils::run_all(&3, &day3::puzzle, RunOption::default(days_restriction).bench(2000));
+    utils::run_all(&3, &day3::puzzle, RunOption::default(days_restriction));
     let duration = start.elapsed().as_millis() as u64;
     println!("");
     println!("[ALL] Overall finished in {} ms",duration);
