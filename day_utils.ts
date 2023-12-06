@@ -131,7 +131,7 @@ export function disableTests() {
  *          bench(boolean): si vrai mode bench (execution 10 fois puis moyenne en enlevant le résultat le plus rapide et le résultat le plus lent)
  *          benchTags(array): tags à passer à la fonction pour "tunner" le comportement
  */
-export function run<BTAG>(day: number, types: Type[], fct: Solver<BTAG>, parts: Part[] = [Part.ALL], opt?: { bench?: boolean, debug?: boolean, benchTags?: BTAG[] }): void {
+export function run<BTAG>(day: number, types: Type[], fct: Solver<BTAG>, parts: Part[] = [Part.ALL], opt?: { bench?: number, debug?: boolean, benchTags?: BTAG[] }): void {
     console.log(`[STARTING] Day ${day}`);
     const start = new Date();
     parts.forEach(part => {
@@ -146,12 +146,13 @@ export function run<BTAG>(day: number, types: Type[], fct: Solver<BTAG>, parts: 
             if (opt?.bench) {
                 for (const benchTag of opt?.benchTags ?? [undefined]) {
                     const benchedResult = [];
-                    for (let count = 0; count < 10; count++) {
+                    for (let count = 0; count < opt.bench; count++) {
                         benchedResult.push(doRun(fct, data, part, type, emptyLogger, benchTag));
                     }
-                    const duration = benchedResult.sortIntuitiveCopy().slice(1, -1).reduce((a, b) => a + b) / (benchedResult.length - 2);
+                    const total_duration = benchedResult.sortIntuitiveCopy().slice(1, -1).reduce((a, b) => a + b);
+                    const duration =  total_duration / (benchedResult.length - 2);
                     const benchTypeLabel = benchTag ?? "";
-                    logger.log(`Bench ${benchTypeLabel} done in agv ${duration} ms`)
+                    logger.log(`Bench ${benchTypeLabel} done in ${total_duration} (agv ${duration} ms)`)
                 }
             } else {
                 const duration = doRun(fct, data, part, type, logger);

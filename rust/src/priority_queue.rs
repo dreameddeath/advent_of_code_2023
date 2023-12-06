@@ -1,5 +1,5 @@
 use std::{
-    collections::{BinaryHeap},
+    collections::BinaryHeap,
     hash::Hash,
 };
 
@@ -14,6 +14,7 @@ pub trait Key<K> {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct Wrapper<C: Ord + PartialOrd, K, T> {
     item: T,
     key: K,
@@ -39,11 +40,13 @@ impl<C: Ord + PartialOrd, K, T> PartialOrd for Wrapper<C, K, T> {
     }
 }
 
+#[allow(dead_code)]
 pub struct PriorityQueue<C: Ord + Copy + Clone, K: Hash + Copy + Clone, T: Cost<C> + Key<K>> {
     best_inserted: FxHashMap<K, C>,
     queue: BinaryHeap<Wrapper<C,K, T>>,
 }
 
+#[allow(dead_code)]
 impl<C: Ord + Copy + Clone, K: Hash + Eq + Copy + Clone, T: Cost<C> + Key<K>>
     PriorityQueue<C, K, T>
 {

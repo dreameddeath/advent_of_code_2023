@@ -1,5 +1,7 @@
 {
-    "files.associations": {
-        "cstdio": "cpp"
-    }
+    "lldb.launch.cwd": "${workspaceFolder}",
+    "lldb.launch.sourceLanguages": [
+        "rust"
+    ],
+    "lldb.suppressMissingSourceFiles": false
 }

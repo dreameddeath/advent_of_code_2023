@@ -1,8 +1,8 @@
 use crate::{
-    check_result,
+    check_result, log,
     utils::{Context, Part},
 };
-use regex::Regex;
+
 
 fn to_number(input: &str) -> i32 {
     return match input {
@@ -19,28 +19,58 @@ fn to_number(input: &str) -> i32 {
     };
 }
 
-pub fn parse(lines: &Vec<String>, is_part_two: bool) -> Vec<i32> {
-    let regexp = if is_part_two {
-        Regex::new(r"^.*?(\d+|one|two|three|four|five|six|seven|eight|nine).*(\d+|one|two|three|four|five|six|seven|eight|nine).*?$").unwrap()
-    } else {
-        Regex::new(r"^.*?(\d+).*(\d+).*$").unwrap()
-    };
+
+const BASE: &'static [&'static str] = &["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+const FULL: &'static [&'static str] = &[
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "one", "two", "three", "four", "five", "six",
+    "seven", "eight", "nine",
+];
+
+#[allow(dead_code)]
+fn parse(lines: &Vec<String>, context: &Context) -> Vec<i32> {
+    let is_part_two = context.is_part(Part::Part2);
+    let chars = if is_part_two { FULL } else { BASE };
     return lines
         .into_iter()
         .map(|l| {
-            let matching = regexp.captures(l.as_str()).unwrap();
-            let first_digit = matching.get(0).map_or(0, |n| to_number(n.as_str()));
-            let second = matching.get(1).map_or(0, |n| to_number(n.as_str()));
+            let first_digit = chars
+                .iter()
+                .map(|str| {
+                    (
+                        str,
+                        l.find(str)
+                            .map(|found| found as i32)
+                            .unwrap_or(std::i32::MAX),
+                    )
+                })
+                .min_by(|a, b| a.1.cmp(&(b.1)))
+                .map(|a| to_number(a.0))
+                .unwrap_or(std::i32::MAX);
+            let second = chars
+                .iter()
+                .map(|str| (str, l.rfind(str).map(|found| found as i32).unwrap_or(-1)))
+                .max_by(|a, b| a.1.cmp(&(b.1)))
+                .map(|a| to_number(a.0))
+                .unwrap_or(0);
+
+            log!(
+                debug,
+                context,
+                "{} ==> Found {}{}",
+                l,
+                &first_digit,
+                &second
+            );
             return first_digit * 10 + second;
         })
         .collect();
 }
 
 pub fn puzzle(context: &Context, lines: &Vec<String>) {
-    let values = parse(lines, context.is_part(Part::Part2));
+    let values = parse(lines, context);
     let result = values.into_iter().sum();
     if context.is_part(Part::Part1) {
-        check_result!(context, result , [142, 55607]);
+        check_result!(context, result, [142, 55607]);
     } else {
         check_result!(context, result, [281, 55291]);
     }

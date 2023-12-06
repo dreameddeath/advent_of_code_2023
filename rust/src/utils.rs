@@ -35,7 +35,7 @@ macro_rules! check_result {
         if $ctxt.is_bench() {
             return;
         }
-        
+
         if !$ctxt.has_part() {
             panic!("Shoudn't be call in mono run context")
         }
@@ -105,7 +105,7 @@ pub fn read_lines(
 #[derive(Eq, PartialEq, Clone, Copy)]
 pub enum Mode {
     STANDARD,
-    BENCH,
+    BENCH(u16),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -143,6 +143,7 @@ pub struct Context {
     part: Option<Part>,
 }
 
+#[allow(dead_code)]
 impl Context {
     fn new_part(day: &u8, options: &RunOption, part: Part, data_set: &Dataset) -> Context {
         return Context::new(day, options, Some(part), data_set);
@@ -155,7 +156,7 @@ impl Context {
     fn new(day: &u8, options: &RunOption, part: Option<Part>, data_set: &Dataset) -> Context {
         let log_level = options.get_log_level();
         let is_debug = options.debug.unwrap_or(false);
-        let is_bench = options.mode.map(|m|m==Mode::BENCH).unwrap_or(false);
+        let is_bench = options.mode.map(|m| match m {Mode::BENCH(_)=>true,_=>false}).unwrap_or(false);
         return Context {
             log_level: log_level,
             day: *day,
@@ -204,7 +205,7 @@ impl Context {
         };
     }
 
-    pub fn is_bench(&self)->bool{
+    pub fn is_bench(&self) -> bool {
         self.is_bench
     }
 
@@ -250,17 +251,16 @@ impl Context {
     }
 }
 
-pub fn run<F: Fn(&Context, &Vec<String>)>(
-    context: Context,
-    fct: &F,
-    mode: &Mode,
-) {
+pub fn run<F: Fn(&Context, &Vec<String>)>(context: Context, fct: &F, mode: &Mode) {
     log!(info, &context, "Starting");
 
     let start_read = Instant::now();
     let lines = to_lines(&context.day, context.part, &context.data_set);
     let read_duration = start_read.elapsed().as_secs_f32() * 1000.0;
-    let nb_max = if *mode == Mode::BENCH { 10 } else { 1 };
+    let nb_max = match *mode {
+        Mode::BENCH(nb) => nb,
+        _ => 1,
+    };
     let start = Instant::now();
     let mut count = 0;
     while count < nb_max {
@@ -280,18 +280,15 @@ pub fn run<F: Fn(&Context, &Vec<String>)>(
     );
 }
 
-pub fn run_simult<F: Fn(&Context, &Vec<String>)>(
-    context: Context,
-    fct: &F,
-    mode: &Mode,
-) {
+#[allow(dead_code)]
+pub fn run_simult<F: Fn(&Context, &Vec<String>)>(context: Context, fct: &F, mode: &Mode) {
     log!(info, context, "Starting");
 
     let start_read = Instant::now();
     let lines = to_lines(&context.day, None, &context.data_set);
     let read_duration = start_read.elapsed().as_secs_f32() * 1000.0;
 
-    let nb_max = if *mode == Mode::BENCH { 10 } else { 1 };
+    let nb_max = match *mode { Mode::BENCH(nb)=>nb,_=>1};
     let start = Instant::now();
     let mut count = 0;
     while count < nb_max {
@@ -357,10 +354,10 @@ impl<'a> RunOption<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn bench(&self) -> RunOption<'a> {
+    pub fn bench(&self,nb:u16) -> RunOption<'a> {
         RunOption {
             active: self.active,
-            mode: Some(Mode::BENCH),
+            mode: Some(Mode::BENCH(nb)),
             debug: self.debug,
             days_restriction: self.days_restriction,
         }
@@ -402,7 +399,7 @@ pub fn run_all<F: Fn(&Context, &Vec<String>)>(day: &u8, fct: &F, options: RunOpt
     }
 
     let mode = options.get_mode();
-    
+
     println!("");
     println!("");
     println!("[Day {}] run per part", day);
@@ -431,16 +428,13 @@ pub fn run_all<F: Fn(&Context, &Vec<String>)>(day: &u8, fct: &F, options: RunOpt
         &fct,
         mode,
     );
-    let duration =  start.elapsed().as_secs_f32() * 1000.0;
+    let duration = start.elapsed().as_secs_f32() * 1000.0;
     println!("");
 
-    println!(
-        "[Day {}] done in {:.2} ms",
-        day,
-        duration
-    );
+    println!("[Day {}] done in {:.2} ms", day, duration);
 }
 
+#[allow(dead_code)]
 pub fn run_all_simult<F: Fn(&Context, &Vec<String>)>(day: &u8, fct: &F, options: RunOption) {
     if !options.is_active(day) {
         return;
@@ -455,12 +449,8 @@ pub fn run_all_simult<F: Fn(&Context, &Vec<String>)>(day: &u8, fct: &F, options:
     run_simult(Context::new_all(day, &options, &Dataset::Real), fct, mode);
     let duration = start.elapsed().as_secs_f32() * 1000.0;
     println!("");
-    
-    println!(
-        "[Day {}] done in {:.2} ms",
-        day,
-        duration
-    );
+
+    println!("[Day {}] done in {:.2} ms", day, duration);
 }
 
 #[allow(dead_code)]
