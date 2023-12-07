@@ -25,6 +25,7 @@ fn main() {
     utils::run_all(&1, &day1::puzzle, RunOption::default(days_restriction));
     utils::run_all(&2, &day2::puzzle, RunOption::default(days_restriction));
     utils::run_all(&3, &day3::puzzle, RunOption::default(days_restriction));
+    utils::run_all(&4, &day4::puzzle, RunOption::default(days_restriction));
     utils::run_all(&5, &day5::puzzle, RunOption::default(days_restriction));
     let duration = start.elapsed().as_millis() as u64;
     println!("");
