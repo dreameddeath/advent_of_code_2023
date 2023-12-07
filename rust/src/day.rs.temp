@@ -3,9 +3,9 @@ use crate::{
     utils::{Context, Part},
 };
 
-fn parse(lines: &Vec<String>) -> Vec<String> {
+fn parse(lines: &Vec<String>) -> Vec<&String> {
     return lines
-        .into_iter()
+        .iter()
         .collect();
 }
 
