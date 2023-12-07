@@ -8,7 +8,7 @@ import "./history/day_03";
 import "./history/day_04";
 import "./history/day_05";
 import "./history/day_06";
-// import "./history/day_7";
+import "./history/day_07";
 // import "./history/day_8";
 // import "./history/day_9";
 // import "./history/day_10";
