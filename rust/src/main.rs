@@ -6,6 +6,7 @@ mod day1;
 mod day2;
 mod day3;
 mod day4;
+mod day5;
 /*mod day11;
 mod day12;
 mod day14;
@@ -24,7 +25,7 @@ fn main() {
     utils::run_all(&1, &day1::puzzle, RunOption::default(days_restriction));
     utils::run_all(&2, &day2::puzzle, RunOption::default(days_restriction));
     utils::run_all(&3, &day3::puzzle, RunOption::default(days_restriction));
-    utils::run_all(&4, &day4::puzzle, RunOption::default(days_restriction));
+    utils::run_all(&5, &day5::puzzle, RunOption::default(days_restriction));
     let duration = start.elapsed().as_millis() as u64;
     println!("");
     println!("[ALL] Overall finished in {} ms",duration);
