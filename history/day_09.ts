@@ -1,4 +1,4 @@
-import { Logger, Part, run, Type } from "./day_utils"
+import { Logger, Part, run, Type } from "../day_utils"
 
 function parse(lines: string[]): number[][] {
     return lines.map(l => l.split(/\s+/).map(n => parseInt(n, 10)));
