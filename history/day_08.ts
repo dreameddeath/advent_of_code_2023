@@ -12,7 +12,7 @@ interface Input {
 }
 
 function parse(lines: string[]): Input {
-    const [insts_str, empty, ...map_str] = lines;
+    const [insts_str, _ignored, ...map_str] = lines;
     const directions = insts_str.split('').map(dir => dir === "L" ? Dir.LEFT : Dir.RIGHT);
 
     const map: Map<string, [string, string]> = new Map();
@@ -94,7 +94,6 @@ function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
         let nb_loop_info_finished = 0;
         let curr_pos = [...input.starting_nodes];
         let nb_step = 0;
-        let last_loop_index = -1;
         while (nb_loop_info_finished !== curr_pos.length) {
             nb_step++;
             const dir = input.instructions[(nb_step - 1) % input.instructions.length];
@@ -106,7 +105,6 @@ function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
                     } else if (loopsInfo[index].loop === undefined) {
                         loopsInfo[index].loop = nb_step - loopsInfo[index].init!;
                         nb_loop_info_finished++;
-                        last_loop_index = index;
                     }
                 }
             })
@@ -121,7 +119,7 @@ function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
         const ppmc = BigInt(ppmc_parts.reduce((a,b,index)=>BigInt(PRIMES[index]**(b))*a,1n));
         
         logger.result(ppmc, [6n, 20220305520997n])
-    }
+    } 
 }
 
 /**
