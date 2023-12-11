@@ -7,7 +7,6 @@ function parse(lines: string[]): number[][] {
 
 
 function predictNext(h: number[]): [number,number] {
-    
     const {nbZeros,newH}=calcNextArray(h);
     const [currFirst,currLast] = [h[0],h[h.length-1]];
     if(nbZeros===newH.length){
