@@ -11,6 +11,8 @@ mod day06;
 mod day07;
 mod day08;
 mod day09;
+mod day10;
+mod day11;
 /*mod day11;
 mod day12;
 mod day14;
@@ -35,6 +37,8 @@ fn main() {
     utils::run_all(&7, &day07::puzzle, RunOption::default(days_restriction));
     utils::run_all_simult(&8, &day08::puzzle, RunOption::default(days_restriction));
     utils::run_all_simult(&9, &day09::puzzle, RunOption::default(days_restriction));
+    utils::run_all_simult(&10, &day10::puzzle, RunOption::default(days_restriction));
+    utils::run_all(&11, &day11::puzzle, RunOption::default(days_restriction));
     
     let duration = start.elapsed().as_millis() as u64;
     println!("");
