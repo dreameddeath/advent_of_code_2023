@@ -80,34 +80,17 @@ impl CellType {
             'F' => CellType::CornerTopLeft,
             '.' => CellType::Empty,
             'S' => CellType::Start,
-            _ => panic!("Unknown cell {}", c),
-        }
-    }
-
-    fn map_to_c(&self) -> char {
-        match self {
-            CellType::Vertical => '|',
-            CellType::Horizontal => '-',
-            CellType::CornerBottomLeft => 'L',
-            CellType::CornerBottomRight => 'J',
-            CellType::CornerTopRight => '7',
-            CellType::CornerTopLeft => 'F',
-            CellType::Empty => '.',
-            CellType::Start => 'S',
+            _ => panic!("Unknown cell type {}", c),
         }
     }
 
     fn can_come_from_start(&self, map: &Map, pos: &Pos) -> bool {
-        for orig_dir in self.dir_to_explore(){
-            if let Some(orig_pos) = pos.move_by(orig_dir) {
-                if let Some(orig_cell) = map.get(&orig_pos) {
-                    if orig_cell.c_type==CellType::Start {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        self.dir_to_explore()
+            .iter()
+            .filter_map(|dir| pos.move_by(dir))
+            .filter_map(|pos| map.get(&pos))
+            .find(|c| c.c_type == CellType::Start)
+            .is_some()
     }
 }
 
@@ -168,8 +151,8 @@ struct Pos {
 
 enum TurnType {
     Strait,
-    Positive,
-    Negative,
+    ClockWise,
+    CounterClockWise,
 }
 
 impl Pos {
@@ -180,16 +163,15 @@ impl Pos {
     }
 
     fn turn_type(&self, before: &Pos, next: &Pos) -> TurnType {
-        let vect_prod = (self.x as isize - before.x as isize)
-            * ((next.y as isize - self.y as isize) * -1)
+        let vect_prod = (self.x as isize - before.x as isize) * ((next.y as isize - self.y as isize) * -1)
             - ((self.y as isize - before.y as isize) * -1) * (next.x as isize - self.x as isize);
 
         if vect_prod == 0 {
             TurnType::Strait
         } else if vect_prod > 0 {
-            TurnType::Negative
+            TurnType::CounterClockWise
         } else {
-            TurnType::Positive
+            TurnType::ClockWise
         }
     }
 }
@@ -256,24 +238,20 @@ fn explore_one_more_for_loop<'a>(map: &Map, curr_loop: &mut LoopInfo) -> Option<
         .dir_to_explore()
         .iter()
         .filter_map(|dir| {
-            curr_pos.move_by(dir).filter(|next_pos| {
-                !next_pos.eq(&previous_pos)
-                    && map
-                        .get(&next_pos)
-                        .filter(|cell| cell.c_type.is_to_explore())
-                        .is_some()
-            })
+            curr_pos
+                .move_by(dir)
+                .filter(|next_pos| !next_pos.eq(&previous_pos) && map.get(&next_pos).filter(|cell| cell.c_type.is_to_explore()).is_some())
         })
         .last();
     if let Some(next) = next_opt {
         curr_loop.all_cells.borrow_mut().push(next);
-    
+
         Some(LoopInfo {
             all_cells: curr_loop.all_cells.clone(),
             total_positive_turns: curr_loop.total_positive_turns
                 + match curr_pos.turn_type(&previous_pos, &next) {
-                    TurnType::Positive => 1,
-                    TurnType::Negative => -1,
+                    TurnType::ClockWise => 1,
+                    TurnType::CounterClockWise => -1,
                     TurnType::Strait => 0,
                 },
         })
@@ -282,62 +260,43 @@ fn explore_one_more_for_loop<'a>(map: &Map, curr_loop: &mut LoopInfo) -> Option<
     }
 }
 
-fn debug_print_map(prefix: &str, orig_map: &Map, possible_loop: &LoopInfo) {
-    let mut map = Map {
-        content: orig_map.content.iter().map(|c| c.clone()).collect(),
-        height: orig_map.height,
-        width: orig_map.width,
-        start: orig_map.start,
-    };
-
-    mark_borders(&mut map, possible_loop);
-    println!("{}\n{}", prefix, to_string(&map));
-}
-
-fn debug_print(orig_map: &Map, possibles_loop: &Vec<LoopInfo>) {
-    debug_print_map("Prop [1]", orig_map, &possibles_loop[0]);
-    debug_print_map("Prop [2]", orig_map, &possibles_loop[1]);
-}
-
 fn explore_one_more(map: &Map, possible_loops: &mut Vec<LoopInfo>) -> FindLoopRes {
     let next_loop_infos = possible_loops
         .iter_mut()
         .filter_map(|loop_info| explore_one_more_for_loop(map, loop_info))
         .collect::<Vec<LoopInfo>>();
     if next_loop_infos.len() <= 1 {
-        debug_print(map, possible_loops);
         panic!("Not enough loops")
     }
+    
     let mut found_results = None;
-    'outer_loop:for (index, loop_info) in next_loop_infos.iter().enumerate() {
+
+    'outer_loop: for (index, loop_info) in next_loop_infos.iter().enumerate() {
         let last_curr = loop_info.all_cells.borrow().last().unwrap().clone();
-        
-        for (other_i,other_loop) in next_loop_infos.iter().enumerate().skip(index+1) {
+
+        for (other_i, other_loop) in next_loop_infos.iter().enumerate().skip(index + 1) {
             let other_last = other_loop.all_cells.borrow().last().unwrap().clone();
             if last_curr.eq(&other_last) {
-                found_results = Some((index,other_i));
+                found_results = Some((index, other_i));
                 break 'outer_loop;
             }
         }
     }
-    if let Some((i1,i2)) = found_results {
+    if let Some((i1, i2)) = found_results {
         let first = &next_loop_infos[i1];
         let second = &next_loop_infos[i2];
-        let mut all_cells:Vec<Pos> =  Vec::with_capacity(first.all_cells.borrow().capacity()+second.all_cells.borrow().capacity());
+        let mut all_cells: Vec<Pos> = Vec::with_capacity(first.all_cells.borrow().capacity() + second.all_cells.borrow().capacity());
         all_cells.extend(first.all_cells.borrow().iter());
         all_cells.extend(second.all_cells.borrow().iter().skip(1).rev().skip(1));
         let nb_positive_turn = first.total_positive_turns - second.total_positive_turns;
-        
+
         return FindLoopRes::Found(LoopInfo {
             all_cells: Rc::new(RefCell::new(all_cells)),
             total_positive_turns: nb_positive_turn,
-        })
+        });
     } else {
         return FindLoopRes::ToExplore(next_loop_infos);
     }
-
-    
-    
 }
 
 fn find_loop(map: &Map) -> LoopInfo {
@@ -346,10 +305,11 @@ fn find_loop(map: &Map) -> LoopInfo {
         .filter_map(|dir| {
             map.start
                 .move_by(dir)
-                .filter(|pos| map.get(&pos).filter(|c| 
-                        c.c_type.is_to_explore() && 
-                        c.c_type.can_come_from_start(map,&pos)).is_some()
-                    )
+                .filter(|pos| {
+                    map.get(&pos)
+                        .filter(|c| c.c_type.is_to_explore() && c.c_type.can_come_from_start(map, &pos))
+                        .is_some()
+                })
                 .map(|pos| LoopInfo {
                     total_positive_turns: 0,
                     all_cells: Rc::new(RefCell::new(vec![
@@ -384,8 +344,8 @@ fn get_to_fill(window: &[Pos], is_globally_clock_wise: bool) -> PartToFill {
     let turn_type = window[1].turn_type(&window[0], &window[2]);
     match turn_type {
         TurnType::Strait => PartToFill::Side,
-        TurnType::Positive if is_globally_clock_wise => PartToFill::InnerCorner,
-        TurnType::Negative if !is_globally_clock_wise => PartToFill::InnerCorner,
+        TurnType::ClockWise if is_globally_clock_wise => PartToFill::InnerCorner,
+        TurnType::CounterClockWise if !is_globally_clock_wise => PartToFill::InnerCorner,
         _ => PartToFill::OuterCorner,
     }
 }
@@ -410,13 +370,7 @@ fn fill(map: &mut Map, window: &[Pos], is_globally_clock_wise: bool) -> u32 {
     let curr_type = map.get(curr).unwrap();
     let to_fill = get_to_fill(window, is_globally_clock_wise);
     match to_fill {
-        PartToFill::Side => fill_direction(
-            map,
-            curr,
-            &curr_type
-                .c_type
-                .side_dir((&window[0], &window[2]), is_globally_clock_wise),
-        ),
+        PartToFill::Side => fill_direction(map, curr, &curr_type.c_type.side_dir((&window[0], &window[2]), is_globally_clock_wise)),
         PartToFill::InnerCorner => fill_direction(map, curr, &curr_type.c_type.inner_dir()),
         PartToFill::OuterCorner => curr_type
             .c_type
@@ -427,60 +381,21 @@ fn fill(map: &mut Map, window: &[Pos], is_globally_clock_wise: bool) -> u32 {
     }
 }
 
-fn to_string(map: &Map) -> String {
-    map.content
-        .chunks(map.width)
-        .map(|cells| {
-            cells
-                .iter()
-                .map(|c| match c.fill_type {
-                    CellFillType::Border => c.c_type.map_to_c(),
-                    CellFillType::Filled => '#',
-                    CellFillType::None => '.',
-                })
-                .collect::<String>()
-        })
-        .collect::<Vec<String>>()
-        .join("\n")
-}
-
-fn print_map(context: &Context, map: &Map) {
-    if !context.is_debug() {
-        return;
-    }
-
-    println!("Map:\n{}", to_string(map));
-}
-
 fn mark_borders(map: &mut Map, loop_info: &LoopInfo) {
-    loop_info
-        .all_cells
-        .borrow()
-        .iter()
-        .for_each(|p| map.mark_as_border(p));
+    loop_info.all_cells.borrow().iter().for_each(|p| map.mark_as_border(p));
 }
 
 pub fn puzzle(context: &Context, lines: &Vec<String>) {
     let mut map = parse(lines);
     let loop_info = find_loop(&map);
-
+    let distance_end_loop = (loop_info.all_cells.borrow().len() as u32).div_euclid(2);
+    
     mark_borders(&mut map, &loop_info);
-
-    print_map(context, &map);
     let filled = loop_info
         .all_cells
         .borrow()
         .windows(3)
         .map(|window| fill(&mut map, window, loop_info.total_positive_turns > 0))
         .sum();
-    print_map(context, &map);
-
-    check_result!(
-        context,
-        [
-            (loop_info.all_cells.borrow().len() as u32).div_euclid(2),
-            filled
-        ],
-        [80, 6909, 10, 461]
-    );
+    check_result!(context,[distance_end_loop, filled],[80, 6909, 10, 461]);
 }
