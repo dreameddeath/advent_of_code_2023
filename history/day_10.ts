@@ -137,7 +137,7 @@ function moveNextState(world: World, state: CurrState): CurrState | undefined {
         allPos: state.allPos,
         nb_clock_wise_turns: state.nb_clock_wise_turns
     };
-    const vect_prod = (currPos.x - previousPos.x) * (nextPos.pos.y - currPos.y) - (currPos.y - currPos.y) * (nextPos.pos.x - currPos.x);
+    const vect_prod = (currPos.x - previousPos.x) * (nextPos.pos.y - currPos.y) - (currPos.y - previousPos.y) * (nextPos.pos.x - currPos.x);
     if (vect_prod < 0) {
         newState.nb_clock_wise_turns--;
     } else if (vect_prod > 0) {
@@ -154,7 +154,7 @@ function moveNext(world: World, states: CurrState[]): CurrState[] | LoopInfo {
         if (y_delta !== 0) {
             return y_delta;
         }
-        return aCurrPos.x - aCurrPos.y;
+        return aCurrPos.x - aCurrPos.x;
     });
     for (let pos = 1; pos < nextStates.length; ++pos) {
         const prev = nextStates[pos - 1];

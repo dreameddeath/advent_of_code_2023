@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Error, Lines};
 use std::path::Path;
+use std::sync::atomic::AtomicUsize;
 use std::time::Instant;
 
 #[macro_export]
@@ -142,9 +143,11 @@ pub struct Context {
     is_bench: bool,
     part: Option<Part>,
 }
+static NB_FAILURES:AtomicUsize= AtomicUsize::new(0);
 
 #[allow(dead_code)]
 impl Context {
+    
     fn new_part(day: &u8, options: &RunOption, part: Part, data_set: &Dataset) -> Context {
         return Context::new(day, options, Some(part), data_set);
     }
@@ -224,6 +227,7 @@ impl Context {
         if val == expected {
             log!(info, self, "Result OK {}", val);
         } else {
+            Context::incr_error();
             log!(
                 error,
                 self,
@@ -234,14 +238,45 @@ impl Context {
         }
     }
 
+    fn incr_error(){
+        NB_FAILURES.fetch_add(1,std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn get_errors()->usize{
+        NB_FAILURES.fetch_add(0, std::sync::atomic::Ordering::Relaxed)
+    }
+
     pub fn check_both<T: Eq + Display>(&self, val: (T, T), expected: (T, T)) {
         if val.0 == expected.0 && val.1 == expected.1 {
             log!(info, self, "Result OK ({},{})", val.0, val.1);
-        } else {
+        } else if val.0 != expected.0 && val.1 == expected.1 {
+            Context::incr_error();
             log!(
                 error,
                 self,
-                "Result KO (>>>{}<<<<,>>>{}<<<) instead of {},{})",
+                "Result KO (>>>{}<<<,>>>{}<<<) instead of {},{})",
+                val.0,
+                val.1,
+                expected.0,
+                expected.1
+            );
+        } else if val.0 != expected.0 {
+            Context::incr_error();
+            log!(
+                error,
+                self,
+                "Result KO (>>>{}<<<,{}) instead of {},{})",
+                val.0,
+                val.1,
+                expected.0,
+                expected.1
+            );
+        } else if val.1 != expected.1 {
+            Context::incr_error();
+            log!(
+                error,
+                self,
+                "Result KO ({},>>>{}<<<) instead of {},{})",
                 val.0,
                 val.1,
                 expected.0,
