@@ -13,9 +13,8 @@ mod day08;
 mod day09;
 mod day10;
 mod day11;
-/*mod day11;
 mod day12;
-mod day14;
+/*mod day14;
 mod day16;
 mod day19;
 mod day20;
@@ -26,7 +25,7 @@ mod priority_queue;
 
 fn main() {
     let start = Instant::now();
-    //let days_restriction:DaysRestriction = &Some(vec![10]);
+    //let days_restriction:DaysRestriction = &Some(vec![12]);
     let days_restriction:DaysRestriction = &None;
     utils::run_all(&1, &day01::puzzle, RunOption::default(days_restriction));
     utils::run_all(&2, &day02::puzzle, RunOption::default(days_restriction));
@@ -39,6 +38,7 @@ fn main() {
     utils::run_all_simult(&9, &day09::puzzle, RunOption::default(days_restriction));
     utils::run_all_simult(&10, &day10::puzzle, RunOption::default(days_restriction));
     utils::run_all(&11, &day11::puzzle, RunOption::default(days_restriction));
+    utils::run_all(&12, &day12::puzzle, RunOption::default(days_restriction));
     
     let duration = start.elapsed().as_millis() as u64;
     println!("");
