@@ -1,6 +1,6 @@
 import { off } from "process";
-import { Logger, Part, run, Type } from "./day_utils"
-import { generator, PackMatchAction } from "./utils";
+import { Logger, Part, run, Type } from "../day_utils"
+import { generator, PackMatchAction } from "../utils";
 
 type PatternLine = { items: number[] }
 
