@@ -217,15 +217,17 @@ Array.prototype.sortIntuitive = function <T, U extends bigint | number | string 
 }
 
 /**
- * Generateur de nombre de 0 à max (exclus)
+ * Generateur de nombre de min (defaut =  0) à max (exclus)
  * @param max le nombre max à générer
+ * @param min (optionnel) : le numéro min
  */
-export function* generator(max: number): Generator<number> {
-    let i = 0;
+export function* generator(max: number,min:number=0): Generator<number> {
+    let i = min;
     while (i < max) {
         yield (i++)
     }
 }
+
 
 /**
  * Fonction de tri "intuitif"
