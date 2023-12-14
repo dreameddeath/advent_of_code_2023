@@ -71,7 +71,7 @@ fn get_applicable_filename(day: &u8, part: Option<Part>, is_test: &Dataset) -> S
     return part
         .map(|p| {
             format!(
-                "./data/day_{}_{}{}.dat",
+                "../data/day_{}_{}{}.dat",
                 day,
                 match p {
                     Part::Part1 => 1,
