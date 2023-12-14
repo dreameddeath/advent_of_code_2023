@@ -58,7 +58,7 @@ where
 
 fn get_applicable_filename_default(day: &u8, is_test: &Dataset) -> String {
     return format!(
-        "./data/day_{}{}.dat",
+        "../data/day_{}{}.dat",
         day,
         match is_test {
             Dataset::Test => "_test",

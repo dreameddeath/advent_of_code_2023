@@ -2,11 +2,13 @@ use crate::{
     check_result,
     utils::Context,
 };
+
 struct Pattern {
     horizontal: Vec<i32>,
     vertical: Vec<i32>,
     all: Vec<Vec<i32>>,
 }
+
 fn parse(lines: &Vec<String>) -> Vec<Pattern> {
     return lines
         .iter()
