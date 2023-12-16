@@ -1,4 +1,5 @@
 import { Logger, Part, run, Type } from "../day_utils"
+import { World2D } from "../map2d.utils"
 
 enum CellType {
     VERTICAL = '|',
@@ -13,105 +14,67 @@ enum CellType {
     FILLED = "#"
 }
 
-type Pos = {
-    x: number,
-    y: number,
-}
 
-type World = {
-    content: CellType[][],
-    height: number,
-    width: number,
+class World extends World2D.Map2d<CellType>{
+    constructor(public readonly start: Readonly<World2D.Pos>, c: World2D.Content<CellType>) {
+        super(c);
+    }
+
+    public toString():string{
+        return super.toString((c)=>c);
+    }
 }
 
 interface CurrState {
     nb_step: number,
     nb_clock_wise_turns: number
-    allPos: Pos[],
+    allPos: World2D.Pos[],
 }
 
-enum Direction {
-    TOP = 'T',
-    BOTTOM = 'B',
-    LEFT = 'L',
-    RIGHT = 'R'
-}
 
 interface LoopInfo {
-    loop: Pos[],
+    loop: Readonly<World2D.Pos>[],
     nb_step: number,
     is_clock_wise: boolean
 };
 
 
-function movePos(world: World, pos: Pos | undefined, dir: Direction): Pos | undefined {
-    if (pos === undefined) {
-        return undefined;
-    }
-    switch (dir) {
-        case Direction.TOP:
-            return pos.y === 0 ? undefined : { x: pos.x, y: pos.y - 1 };
-        case Direction.BOTTOM:
-            return (pos.y + 1) === world.height ? undefined : { x: pos.x, y: pos.y + 1 };
-        case Direction.LEFT:
-            return (pos.x) === 0 ? undefined : { x: pos.x - 1, y: pos.y };
-        case Direction.RIGHT:
-            return (pos.x + 1) === world.width ? undefined : { x: pos.x + 1, y: pos.y };
-    }
-}
 
-function movePositions(world: World, pos: Pos | undefined, directions: Direction[]): Pos | undefined {
-    return directions.reduce((curr_pos, dir) => movePos(world, curr_pos, dir), pos);
-}
-
-function moveDiagonals(world: World, pos: Pos | undefined, directions: [Direction, Direction]): (Pos | undefined)[] {
+function moveDiagonals(world: World, pos: World2D.Pos | undefined, directions: [World2D.Dir, World2D.Dir]): (World2D.Pos | undefined)[] {
     return [
-        movePos(world, pos, directions[0]),
-        movePos(world, pos, directions[1]),
-        movePositions(world, pos, directions),
+        world.move_pos(pos, directions[0]),
+        world.move_pos(pos, directions[1]),
+        world.move_pos_many(pos, directions),
     ];
 }
 
 
-function getMovedPosInfo(world: World, pos: Pos, dir: Direction): { pos: Pos, type: CellType } | undefined {
-    const nextPos = movePos(world, pos, dir);
-    if (nextPos === undefined) {
-        return undefined;
-    }
-    return { pos: nextPos, type: world.content[nextPos.y][nextPos.x] };
-
-}
-
-
-function getNextPossiblePosInfo(world: World, pos: Pos, dir: Direction): { pos: Pos, type: CellType } | undefined {
-    const nextPosInfo = getMovedPosInfo(world, pos, dir);
+function getNextPossiblePosInfo(world: World, pos: Readonly<World2D.Pos>, dir: World2D.Dir): World2D.PosAndCell<CellType> | undefined {
+    const nextPosInfo = world.move_pos_with_cell(pos, dir);
     if (nextPosInfo === undefined) {
         return undefined;
     }
-    if (nextPosInfo.type === CellType.NONE || nextPosInfo.type === CellType.START) {
+    if (nextPosInfo.cell === CellType.NONE || nextPosInfo.cell === CellType.START) {
         return undefined;
     }
     return nextPosInfo;
 }
 
-function isSamePos(a: Pos, b: Pos): boolean {
-    return a.x === b.x && a.y === b.y;
-}
 
-function getNextPossibleDirs(type: CellType): [Direction, Direction] {
+function getNextPossibleDirs(type: CellType): [World2D.Dir, World2D.Dir] {
     switch (type) {
         case CellType.HORIZONTAL:
-            return [Direction.LEFT, Direction.RIGHT];
+            return [World2D.Dir.LEFT, World2D.Dir.RIGHT];
         case CellType.VERTICAL:
-            return [Direction.BOTTOM, Direction.TOP];
+            return [World2D.Dir.DOWN, World2D.Dir.UP];
         case CellType.CORNER_BOTTOM_LEFT:
-            return [Direction.RIGHT, Direction.TOP];
+            return [World2D.Dir.RIGHT, World2D.Dir.UP];
         case CellType.CORNER_BOTTOM_RIGHT:
-            return [Direction.LEFT, Direction.TOP];
+            return [World2D.Dir.LEFT, World2D.Dir.UP];
         case CellType.CORNER_TOP_LEFT:
-            return [Direction.RIGHT, Direction.BOTTOM];
+            return [World2D.Dir.RIGHT, World2D.Dir.DOWN];
         case CellType.CORNER_TOP_RIGHT:
-            return [Direction.LEFT, Direction.BOTTOM];
+            return [World2D.Dir.LEFT, World2D.Dir.DOWN];
         default:
             throw new Error("Cannot move from " + type);
     }
@@ -121,12 +84,12 @@ function getNextPossibleDirs(type: CellType): [Direction, Direction] {
 
 function moveNextState(world: World, state: CurrState): CurrState | undefined {
     const currPos = state.allPos[state.allPos.length - 1];
-    const currType = world.content[currPos.y][currPos.x];
+    const currType = world.cell(currPos);
     const previousPos = state.allPos[state.allPos.length - 2];
     const [dir1, dir2] = getNextPossibleDirs(currType);
     const [nextPosInfo1, nextPosInfo2] = [getNextPossiblePosInfo(world, currPos, dir1), getNextPossiblePosInfo(world, currPos, dir2)];
-    const isDir1Applicable = nextPosInfo1 !== undefined && !isSamePos(nextPosInfo1.pos, previousPos);
-    const isDir2Applicable = nextPosInfo2 !== undefined && !isSamePos(nextPosInfo2.pos, previousPos);
+    const isDir1Applicable = nextPosInfo1 !== undefined && !world.is_same_pos(nextPosInfo1.pos, previousPos);
+    const isDir2Applicable = nextPosInfo2 !== undefined && !world.is_same_pos(nextPosInfo2.pos, previousPos);
     const nextPos = isDir1Applicable ? nextPosInfo1 : (isDir2Applicable ? nextPosInfo2 : undefined);
     if (nextPos === undefined) {
         return undefined;
@@ -159,7 +122,7 @@ function moveNext(world: World, states: CurrState[]): CurrState[] | LoopInfo {
     for (let pos = 1; pos < nextStates.length; ++pos) {
         const prev = nextStates[pos - 1];
         const curr = nextStates[pos];
-        if (isSamePos(prev.allPos[prev.allPos.length - 1], curr.allPos[curr.allPos.length - 1])) {
+        if (world.is_same_pos(prev.allPos[prev.allPos.length - 1], curr.allPos[curr.allPos.length - 1])) {
             if (prev.nb_step !== curr.nb_step) {
                 throw new Error("Strange loop found");
             }
@@ -175,30 +138,30 @@ function moveNext(world: World, states: CurrState[]): CurrState[] | LoopInfo {
     return nextStates;
 }
 
-function getPossibleStartInfo(world: World, start: Pos, dir: Direction): { pos: Pos, type: CellType } | undefined {
-    const nextPosInfo = getNextPossiblePosInfo(world, start, dir);
+function getPossibleStartInfo(world: World, dir: World2D.Dir): World2D.PosAndCell<CellType> | undefined {
+    const nextPosInfo = getNextPossiblePosInfo(world, world.start, dir);
     if (nextPosInfo === undefined) {
         return undefined;
     }
-    const [dir1, dir2] = getNextPossibleDirs(nextPosInfo.type);
-    const [posDir1, posDir2] = [movePos(world, nextPosInfo.pos, dir1), movePos(world, nextPosInfo.pos, dir2)];
-    if (posDir1 !== undefined && isSamePos(posDir1, start)) {
+    const [dir1, dir2] = getNextPossibleDirs(nextPosInfo.cell);
+    const [posDir1, posDir2] = [world.move_pos(nextPosInfo.pos, dir1), world.move_pos(nextPosInfo.pos, dir2)];
+    if (posDir1 !== undefined && world.is_same_pos(posDir1, world.start)) {
         return nextPosInfo;
-    } else if (posDir2 !== undefined && isSamePos(posDir2, start)) {
+    } else if (posDir2 !== undefined && world.is_same_pos(posDir2, world.start)) {
         return nextPosInfo;
     }
     return undefined;
 }
 
-function getLoopInfo(world: World, start: Pos): LoopInfo {
-    let currStates: CurrState[] = ALL_DIR.mapNonNull(dir => getPossibleStartInfo(world, start, dir))
+function getLoopInfo(world: World): LoopInfo {
+    let currStates: CurrState[] = ALL_DIR.mapNonNull(dir => getPossibleStartInfo(world, dir))
         .map(next => {
             return {
-                currType: next.type,
+                currType: next.cell,
                 currPos: next.pos,
-                previousPos: start,
+                previousPos: world.start,
                 nb_step: 1,
-                allPos: [start, next.pos],
+                allPos: [world.start, next.pos],
                 nb_clock_wise_turns: 0,
                 nb_counter_clock_wise_turns: 0,
             }
@@ -213,19 +176,19 @@ function getLoopInfo(world: World, start: Pos): LoopInfo {
     }
 }
 
-const ALL_DIR = [Direction.BOTTOM, Direction.TOP, Direction.RIGHT, Direction.LEFT];
+const ALL_DIR = [World2D.Dir.DOWN, World2D.Dir.UP, World2D.Dir.RIGHT, World2D.Dir.LEFT];
 
-function fillIfPossible(pos: Pos | undefined, world: World): number {
+function fillIfPossible(pos: World2D.Pos | undefined, world: World): number {
     if (pos === undefined) {
         return 0;
     }
-    const type = world.content[pos.y][pos.x]
+    const type = world.cell(pos);
     if (type === CellType.EDGE || type === CellType.FILLED) {
         return 0;
     }
-    world.content[pos.y][pos.x] = CellType.FILLED;
+    world.set_cell(pos, CellType.FILLED);
 
-    return ALL_DIR.map(dir => fillIfPossible(movePos(world, pos, dir), world)).reduce((a, b) => a + b, 1);
+    return ALL_DIR.map(dir => fillIfPossible(world.move_pos(pos, dir), world)).reduce((a, b) => a + b, 1);
 }
 
 enum TurnPartToFill {
@@ -242,44 +205,44 @@ function turn_part_to_fill(vect_prod: number, is_clock_wise_loop: boolean): Turn
     return TurnPartToFill.OUTER
 }
 
-function getToFill(edges: readonly [Pos, Pos, Pos], world: World, is_clock_wise_loop: boolean, origWorld: World): (Pos | undefined)[] {
+function getToFill(edges: readonly [World2D.Pos, World2D.Pos, World2D.Pos], world: World, is_clock_wise_loop: boolean, origWorld: World): (World2D.Pos | undefined)[] {
     const vect_prod = (edges[1].x - edges[0].x) * (edges[2].y - edges[1].y) - (edges[1].y - edges[0].y) * (edges[2].x - edges[1].x);
     if (vect_prod === 0) {
         const isVertical = edges[0].x === edges[2].x;
         if (isVertical) {
             const isTopToBottom = edges[0].y < edges[2].y;
             if (isTopToBottom) {
-                return [movePos(world, edges[1], is_clock_wise_loop ? Direction.LEFT : Direction.RIGHT)]
+                return [world.move_pos(edges[1], is_clock_wise_loop ? World2D.Dir.LEFT : World2D.Dir.RIGHT)]
             } else {
-                return [movePos(world, edges[1], is_clock_wise_loop ? Direction.RIGHT : Direction.LEFT)]
+                return [world.move_pos(edges[1], is_clock_wise_loop ? World2D.Dir.RIGHT : World2D.Dir.LEFT)]
             }
         } else {
             const isLeftToRight = edges[0].x < edges[2].x
             if (isLeftToRight) {
-                return [movePos(world, edges[1], is_clock_wise_loop ? Direction.BOTTOM : Direction.TOP)]
+                return [world.move_pos(edges[1], is_clock_wise_loop ? World2D.Dir.DOWN : World2D.Dir.UP)]
             } else {
-                return [movePos(world, edges[1], is_clock_wise_loop ? Direction.TOP : Direction.BOTTOM)]
+                return [world.move_pos(edges[1], is_clock_wise_loop ? World2D.Dir.UP : World2D.Dir.DOWN)]
             }
         }
     } else {
-        const type = origWorld.content[edges[1].y][edges[1].x];
+        const type = origWorld.cell(edges[1]);
         const zone = turn_part_to_fill(vect_prod, is_clock_wise_loop);
         switch (zone) {
             case TurnPartToFill.INNER: {
                 switch (type) {
-                    case CellType.CORNER_BOTTOM_LEFT: return [movePositions(world, edges[1], [Direction.TOP, Direction.RIGHT])];
-                    case CellType.CORNER_BOTTOM_RIGHT: return [movePositions(world, edges[1], [Direction.TOP, Direction.LEFT])];
-                    case CellType.CORNER_TOP_LEFT: return [movePositions(world, edges[1], [Direction.BOTTOM, Direction.RIGHT])];
-                    case CellType.CORNER_TOP_RIGHT: return [movePositions(world, edges[1], [Direction.BOTTOM, Direction.LEFT])];
+                    case CellType.CORNER_BOTTOM_LEFT: return [world.move_pos_many(edges[1], [World2D.Dir.UP, World2D.Dir.RIGHT])];
+                    case CellType.CORNER_BOTTOM_RIGHT: return [world.move_pos_many(edges[1], [World2D.Dir.UP, World2D.Dir.LEFT])];
+                    case CellType.CORNER_TOP_LEFT: return [world.move_pos_many(edges[1], [World2D.Dir.DOWN, World2D.Dir.RIGHT])];
+                    case CellType.CORNER_TOP_RIGHT: return [world.move_pos_many(edges[1], [World2D.Dir.DOWN, World2D.Dir.LEFT])];
                 }
                 break;
             }
             case TurnPartToFill.OUTER: {
                 switch (type) {
-                    case CellType.CORNER_BOTTOM_LEFT: return moveDiagonals(world, edges[1], [Direction.BOTTOM, Direction.LEFT]);
-                    case CellType.CORNER_BOTTOM_RIGHT: return moveDiagonals(world, edges[1], [Direction.BOTTOM, Direction.RIGHT]);
-                    case CellType.CORNER_TOP_LEFT: return moveDiagonals(world, edges[1], [Direction.TOP, Direction.LEFT]);
-                    case CellType.CORNER_TOP_RIGHT: return moveDiagonals(world, edges[1], [Direction.TOP, Direction.RIGHT]);
+                    case CellType.CORNER_BOTTOM_LEFT: return moveDiagonals(world, edges[1], [World2D.Dir.DOWN, World2D.Dir.LEFT]);
+                    case CellType.CORNER_BOTTOM_RIGHT: return moveDiagonals(world, edges[1], [World2D.Dir.DOWN, World2D.Dir.RIGHT]);
+                    case CellType.CORNER_TOP_LEFT: return moveDiagonals(world, edges[1], [World2D.Dir.UP, World2D.Dir.LEFT]);
+                    case CellType.CORNER_TOP_RIGHT: return moveDiagonals(world, edges[1], [World2D.Dir.UP, World2D.Dir.RIGHT]);
                 }
                 break;
             }
@@ -290,13 +253,13 @@ function getToFill(edges: readonly [Pos, Pos, Pos], world: World, is_clock_wise_
 }
 
 
-function tryFill(edges: readonly [Pos, Pos, Pos], world: World, is_clock_wise_loop: boolean, origWorld: World): number {
+function tryFill(edges: readonly [World2D.Pos, World2D.Pos, World2D.Pos], world: World, is_clock_wise_loop: boolean, origWorld: World): number {
     const cellsToFill = getToFill(edges, world, is_clock_wise_loop, origWorld);
     return cellsToFill.reduce((count, cell) => count + fillIfPossible(cell, world), 0);
 }
 
-function parse(lines: string[]): { start: Pos, world: World } {
-    let start_index: Pos = { x: 0, y: 0 };
+function parse(lines: string[]): World {
+    let start_index: World2D.Pos = { x: 0, y: 0 };
     const map = lines
         .map((l, y) => l.split("").map((t, x) => {
             if (t === CellType.START) {
@@ -304,40 +267,29 @@ function parse(lines: string[]): { start: Pos, world: World } {
             }
             return t
         }) as CellType[]);
-    return {
-        start: start_index,
-        world: {
-            content: map,
-            height: map.length,
-            width: map[0].length,
-        }
-    }
+    return new World(start_index, map)
 }
 
 
 function puzzle(lines: string[], _part: Part, _type: Type, logger: Logger): void {
-    const data = parse(lines);
-    const loopInfo = getLoopInfo(data.world, data.start);
+    const world = parse(lines);
+    const loopInfo = getLoopInfo(world);
 
-    const origWorld: World = {
-        content: data.world.content.map(l => [...l]),
-        height: data.world.height,
-        width: data.world.width
-    };
+    const origWorld = new World(world.start,world.cloned_cells((c)=>c))
 
 
-    loopInfo.loop.forEach(pos => data.world.content[pos.y][pos.x] = CellType.EDGE);
+    loopInfo.loop.forEach(pos => world.set_cell(pos,CellType.EDGE));
 
-    logger.debug(() => "\n" + data.world.content.map(l => l.join("")).join("\n"))
+    logger.debug(() => "\n" + world.toString())
 
     let count = loopInfo.loop.reduce((count, pos, index, loop) => {
         if (index === 0 || index === loop.length - 1) {
             return count;
         }
         const edges = [loop[index - 1], pos, loop[index + 1]] as const;
-        return count + tryFill(edges, data.world, loopInfo.is_clock_wise, origWorld);
+        return count + tryFill(edges, world, loopInfo.is_clock_wise, origWorld);
     }, 0)
-    logger.debug(() => "\n" + data.world.content.map(l => l.join("")).join("\n"));
+    logger.debug(() => "\n" + world.toString());
 
 
     logger.result([loopInfo.nb_step, count], [80, 6909, 10, 461])

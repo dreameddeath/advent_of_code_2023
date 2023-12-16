@@ -2,6 +2,7 @@ import { cy } from "date-fns/locale";
 import { Logger, Part, run, Type } from "../day_utils"
 import { ExtendedMap } from "../mapUtils";
 import { generator } from "../utils";
+import { World2D } from "../map2d.utils";
 
 enum CellType {
     ROCK = "O",
@@ -9,43 +10,51 @@ enum CellType {
     SOLID = '#'
 }
 
-type Map = {
-    content: CellType[][],
-    nbRocksByRow: number[],
-    nbRocksByColumn: number[],
-    width: number,
-    height: number
-}
-
-type Direction = "up" | "down" | "left" | "right";
-
-type Pos = {
-    x: number,
-    y: number
-}
-
-function getNextEmptyBlock(pos: Pos, dir: Direction, map: Map): Pos | undefined {
-    let move = { x: 0, y: 0 }
-    switch (dir) {
-        case "up": move.y = -1; break;
-        case "down": move.y = 1; break;
-        case "left": move.x = -1; break;
-        case "right": move.x = 1; break;
-        default:
-            throw new Error("Cannot move");
+class Map extends World2D.Map2d<CellType>{
+    constructor(content: World2D.Content<CellType>,
+        public readonly nbRocksByRow: number[],
+        public readonly nbRocksByColumn: number[]
+    ) {
+        super(content);
     }
 
-    let { x, y } = pos;
-    while (x >= 0 && x < map.width && y >= 0 && y < map.height) {
-        if (map.content[y + move.y]?.[x + move.x] !== CellType.EMPTY) {
-            return { x, y };
+    public nextEmptyBlock(pos: World2D.Pos, dir: World2D.Dir): World2D.Pos | undefined {
+        return this.move_while_next(pos, dir, (c) => c === CellType.EMPTY, true);
+    }
+
+    private tilt_cell(pos: World2D.Pos, dir: World2D.Dir) {
+        if (this.cell(pos) !== CellType.ROCK) {
+            return;
         }
-        x += move.x;
-        y += move.y;
+        const newPos = this.nextEmptyBlock(pos, dir);
+        if (newPos === undefined) {
+            return;
+        }
+        this.nbRocksByRow[pos.y] -= 1;
+        this.nbRocksByRow[newPos.y] += 1;
+        this.nbRocksByColumn[pos.x] -= 1;
+        this.nbRocksByColumn[newPos.x] += 1;
+        this.set_cell(pos, CellType.EMPTY);
+        this.set_cell(newPos, CellType.ROCK);
     }
-    return undefined;
-}
 
+    public tilt(dir: World2D.Dir) {
+        switch (dir) {
+            case World2D.Dir.DOWN:
+            case World2D.Dir.UP:
+                this.apply_to_all(World2D.Dir.RIGHT, this.opposite(dir), (pos) => this.tilt_cell(pos, dir));
+                break;
+            case World2D.Dir.LEFT:
+            case World2D.Dir.RIGHT:
+                this.apply_to_all(this.opposite(dir), World2D.Dir.DOWN, (pos) => this.tilt_cell(pos, dir));
+                break;
+        }
+    }
+
+    public toString(): string {
+        return super.toString(c => c);
+    }
+}
 
 function parse(lines: string[]): Map {
     const nbRocksByRow: number[] = [...generator(lines.length)].map(_ => 0);
@@ -57,13 +66,7 @@ function parse(lines: string[]): Map {
         }
         return c;
     }) as CellType[]);
-    return {
-        content,
-        nbRocksByRow,
-        nbRocksByColumn,
-        width: content[0].length,
-        height: content.length
-    };
+    return new Map(content, nbRocksByRow, nbRocksByColumn);
 }
 
 function calcLoad(array: number[]): number {
@@ -72,61 +75,13 @@ function calcLoad(array: number[]): number {
         , 0);
 }
 
-function tilt(x: number, y: number, dir: Direction, map: Map) {
-    if (map.content[y][x] !== CellType.ROCK) {
-        return;
-    }
-    const newPos = getNextEmptyBlock({ x, y }, dir, map);
-    if (newPos === undefined) {
-        return;
-    }
-    map.nbRocksByRow[y] -= 1;
-    map.nbRocksByRow[newPos.y] += 1;
-    map.nbRocksByColumn[x] -= 1;
-    map.nbRocksByColumn[newPos.x] += 1;
-    map.content[y][x] = CellType.EMPTY;
-    map.content[newPos.y][newPos.x] = CellType.ROCK;
-}
-
-function moveRocks(dir: Direction, map: Map) {
-    let y_s = [...generator(map.height)];
-    let x_s = [...generator(map.width)];
-    switch (dir) {
-        case "down": {
-            y_s.reverse();
-            break;
-        }
-        case "right": {
-            x_s.reverse();
-            break;
-        }
-    }
-    if (dir === "left" || dir == "right") {
-        for (const x of x_s) {
-            if (map.nbRocksByColumn[x] !== 0) {
-                for (const y of y_s) {
-                    tilt(x, y, dir, map);
-                }
-            }
-        }
-    } else {
-        for (const y of y_s) {
-            if (map.nbRocksByRow[y] !== 0) {
-                for (const x of x_s) {
-                    tilt(x, y, dir, map);
-                }
-            }
-        }
-    }
-}
-
-
 function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
     const map = parse(lines);
-
-
+    if (type === Type.TEST) {
+        logger.debug(() => "Starting Point :\n" + map.toString())
+    }
     const xTendedMap: ExtendedMap<string, { count: number, cycle: number, load: number }> = new ExtendedMap();
-    
+
     let updateCache = () => {
         let loadUp = calcLoad(map.nbRocksByRow);
         let loadLeft = calcLoad(map.nbRocksByColumn);
@@ -143,32 +98,39 @@ function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
         }
         return found
     }
-    const moveOrder: [Direction, Direction, Direction, Direction] = ["up", "left", "down", "right"];
+    const moveOrder: [World2D.Dir, World2D.Dir, World2D.Dir, World2D.Dir] = [World2D.Dir.UP, World2D.Dir.LEFT, World2D.Dir.DOWN, World2D.Dir.RIGHT];
     let cycle = 0;
     let resultPart1: number = 0;
     let resultPart2: number = 0;
-    let moveNext = () => {
+    let tilt_next = () => {
         moveOrder.forEach(dir => {
-            moveRocks(dir, map)
-            if (cycle === 0 && dir === "up") {
+            map.tilt(dir);
+            if (cycle === 0 && dir == World2D.Dir.UP) {
                 resultPart1 = calcLoad(map.nbRocksByRow);
             }
+            if (type === Type.TEST && cycle === 0) {
+                logger.debug(() => `First tilt ${dir}:\n${map.toString()}`)
+            }
+
         })
+        if (type === Type.TEST && cycle < 3) {
+            logger.debug(() => `After ${cycle}:\n${map.toString()}`)
+        }
         cycle++;
     }
     do {
-        moveNext();
+        tilt_next();
         const found = updateCache();
         if (found !== undefined && found.count > 1) {
             let startLoop = found.cycle;
             let loopSize = cycle - found.cycle;
             const expected_cycles = 1_000_000_000;
-            let remaining = (expected_cycles-startLoop)%loopSize;
-            while(remaining>0){
-                moveNext();
+            let remaining = (expected_cycles - startLoop) % loopSize;
+            while (remaining > 0) {
+                tilt_next();
                 remaining--;
             }
-            resultPart2=calcLoad(map.nbRocksByRow);
+            resultPart2 = calcLoad(map.nbRocksByRow);
             break;
         }
     } while (true);
@@ -179,4 +141,4 @@ function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
  * Update the date number after copy
  * Adapt types list to your needs and parts also 
  */
-run(14, [Type.TEST, Type.RUN], puzzle, [Part.ALL])
+run(14, [Type.TEST, Type.RUN], puzzle, [Part.ALL], { debug: false })
