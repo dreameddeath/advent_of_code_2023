@@ -1,6 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{check_result, utils::Context};
+use crate::{
+    check_result,
+    map2d::{Direction, DirectionAny, Map2D, Pos, TurnType, Vec2D},
+    utils::Context,
+};
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum CellType {
     Vertical,
@@ -14,53 +18,51 @@ enum CellType {
 }
 
 impl CellType {
-    fn dir_to_explore(&self) -> [&DirectionInfo; 2] {
+    fn dir_to_explore(&self) -> [&Direction; 2] {
         match self {
-            CellType::Horizontal => [&LEFT, &RIGHT],
-            CellType::Vertical => [&BOTTOM, &TOP],
-            CellType::CornerBottomLeft => [&RIGHT, &TOP],
-            CellType::CornerBottomRight => [&LEFT, &TOP],
-            CellType::CornerTopLeft => [&RIGHT, &BOTTOM],
-            CellType::CornerTopRight => [&LEFT, &BOTTOM],
+            CellType::Horizontal => [&Direction::LEFT, &Direction::RIGHT],
+            CellType::Vertical => [&Direction::DOWN, &Direction::UP],
+            CellType::CornerBottomLeft => [&Direction::RIGHT, &Direction::UP],
+            CellType::CornerBottomRight => [&Direction::LEFT, &Direction::UP],
+            CellType::CornerTopLeft => [&Direction::RIGHT, &Direction::DOWN],
+            CellType::CornerTopRight => [&Direction::LEFT, &Direction::DOWN],
             _ => panic!("Nothing to explore from {:?}", *self),
         }
     }
 
-    fn inner_dir(&self) -> DirectionInfo {
+    fn inner_dir(&self) -> &DirectionAny {
         match self {
-            CellType::CornerBottomLeft => TOP_RIGHT,
-            CellType::CornerBottomRight => TOP_LEFT,
-            CellType::CornerTopLeft => BOTTOM_RIGHT,
-            CellType::CornerTopRight => BOTTOM_LEFT,
+            CellType::CornerBottomLeft => &DirectionAny::UP_RIGHT,
+            CellType::CornerBottomRight => &DirectionAny::UP_LEFT,
+            CellType::CornerTopLeft => &DirectionAny::DOWN_RIGHT,
+            CellType::CornerTopRight => &DirectionAny::DOWN_LEFT,
             _ => panic!("Should not be called"),
         }
     }
 
-    fn outer_directions(&self) -> [DirectionInfo; 3] {
+    fn outer_directions(&self) -> [&DirectionAny; 3] {
         match self {
-            CellType::CornerBottomLeft => [LEFT, BOTTOM_LEFT, BOTTOM],
-            CellType::CornerBottomRight => [RIGHT, BOTTOM_RIGHT, BOTTOM],
-            CellType::CornerTopLeft => [LEFT, TOP_LEFT, TOP],
-            CellType::CornerTopRight => [RIGHT, TOP_RIGHT, TOP],
+            CellType::CornerBottomLeft => [&DirectionAny::DOWN_LEFT, &DirectionAny::LEFT, &DirectionAny::DOWN],
+            CellType::CornerBottomRight => [&DirectionAny::DOWN_RIGHT, &DirectionAny::RIGHT, &DirectionAny::DOWN],
+            CellType::CornerTopLeft => [&DirectionAny::UP_LEFT, &DirectionAny::LEFT, &DirectionAny::UP],
+            CellType::CornerTopRight => [&DirectionAny::UP_RIGHT, &DirectionAny::RIGHT, &DirectionAny::UP],
             _ => panic!("Should not be called"),
         }
     }
 
-    fn side_dir(&self, vec: (&Pos, &Pos), is_globally_clock_wise: bool) -> DirectionInfo {
-        let delta_x = vec.1.x as isize - vec.0.x as isize;
-        let delta_y = vec.1.y as isize - vec.0.y as isize;
+    fn side_dir(&self, vec: Vec2D, is_globally_clock_wise: bool) -> &DirectionAny {
         match self {
             CellType::Vertical => match is_globally_clock_wise {
-                true if delta_y >= 0 => LEFT,
-                true => RIGHT,
-                false if delta_y >= 0 => RIGHT,
-                false => LEFT,
+                true if vec.y >= 0 => &DirectionAny::LEFT,
+                true => &DirectionAny::RIGHT,
+                false if vec.y >= 0 => &DirectionAny::RIGHT,
+                false => &DirectionAny::LEFT,
             },
             CellType::Horizontal => match is_globally_clock_wise {
-                true if delta_x >= 0 => BOTTOM,
-                true => TOP,
-                false if delta_x >= 0 => TOP,
-                false => BOTTOM,
+                true if vec.x >= 0 => &DirectionAny::DOWN,
+                true => &DirectionAny::UP,
+                false if vec.x >= 0 => &DirectionAny::UP,
+                false => &DirectionAny::DOWN,
             },
             _ => panic!("Should not be called"),
         }
@@ -84,13 +86,11 @@ impl CellType {
         }
     }
 
-    fn can_come_from_start(&self, map: &Map, pos: &Pos) -> bool {
+    fn can_come_from_start(&self, world: &World, pos: &Pos) -> bool {
         self.dir_to_explore()
             .iter()
-            .filter_map(|dir| pos.move_by(dir))
-            .filter_map(|pos| map.get(&pos))
-            .find(|c| c.c_type == CellType::Start)
-            .is_some()
+            .filter_map(|dir| world.map.move_pos(pos, dir))
+            .any(|pos| world.map.get(&pos).c_type == CellType::Start)
     }
 }
 
@@ -101,100 +101,48 @@ enum CellFillType {
     Border,
 }
 
-#[derive(Clone, Copy)]
 struct Cell {
     c_type: CellType,
     fill_type: CellFillType,
 }
 
-struct Map {
-    width: usize,
-    height: usize,
-    content: Vec<Cell>,
+struct World {
+    map: Map2D<Cell>,
     start: Pos,
 }
 
-impl Map {
-    fn get(&self, pos: &Pos) -> Option<&Cell> {
-        self.get_index(pos).map(|i| &self.content[i])
-    }
-
-    fn get_index(&self, pos: &Pos) -> Option<usize> {
-        if pos.x >= self.width || pos.y >= self.height {
-            return None;
-        }
-        return Some(pos.y * self.width + pos.x);
-    }
-
+impl World {
     fn mark_as_border(&mut self, pos: &Pos) {
-        let pos = self.get_index(pos).unwrap();
-        self.content[pos].fill_type = CellFillType::Border;
+        self.map.get_mut(pos).fill_type = CellFillType::Border
     }
 
-    fn fill(&mut self, pos: &Pos) -> bool {
-        self.get_index(pos)
-            .map(|pos| &mut self.content[pos])
-            .filter(|c| c.fill_type == CellFillType::None)
-            .map(|c| {
-                c.fill_type = CellFillType::Filled;
-                return c;
-            })
-            .is_some()
-    }
-}
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-struct Pos {
-    x: usize,
-    y: usize,
-}
-
-enum TurnType {
-    Strait,
-    ClockWise,
-    CounterClockWise,
-}
-
-impl Pos {
-    fn move_by(&self, dir: &DirectionInfo) -> Option<Pos> {
-        self.x
-            .checked_add_signed(dir.0)
-            .and_then(|x| self.y.checked_add_signed(dir.1).map(|y| Pos { x, y }))
-    }
-
-    fn turn_type(&self, before: &Pos, next: &Pos) -> TurnType {
-        let vect_prod = (self.x as isize - before.x as isize) * ((next.y as isize - self.y as isize) * -1)
-            - ((self.y as isize - before.y as isize) * -1) * (next.x as isize - self.x as isize);
-
-        if vect_prod == 0 {
-            TurnType::Strait
-        } else if vect_prod > 0 {
-            TurnType::CounterClockWise
+    fn flood_fill(&mut self, pos: &Pos) -> u32 {
+        if let Some(cell) = self.map.get_mut_opt(pos) {
+            if cell.fill_type != CellFillType::None {
+                return 0;
+            }
+            cell.fill_type=CellFillType::Filled;
         } else {
-            TurnType::ClockWise
+            return 0
         }
+        let mut sum = 0;
+        let next_positions:Vec<Pos> = Direction::ALL_DIRECTIONS_CLOCKWISE.iter()
+            .filter_map(|dir| self.map.move_pos(pos, &dir))
+            .collect();
+        for next_pos in next_positions.iter() {
+            sum += self.flood_fill(&next_pos);
+        }
+        return sum + 1;
     }
 }
 
-type DirectionInfo = (isize, isize);
-
-const TOP: DirectionInfo = (0, -1);
-const BOTTOM: DirectionInfo = (0, 1);
-const LEFT: DirectionInfo = (-1, 0);
-const RIGHT: DirectionInfo = (1, 0);
-const BOTTOM_LEFT: DirectionInfo = (LEFT.0, BOTTOM.1);
-const BOTTOM_RIGHT: DirectionInfo = (RIGHT.0, BOTTOM.1);
-const TOP_LEFT: DirectionInfo = (LEFT.0, TOP.1);
-const TOP_RIGHT: DirectionInfo = (RIGHT.0, TOP.1);
-
-fn parse(lines: &Vec<String>) -> Map {
-    let width = lines[0].len();
-    let height = lines.len();
+fn parse(lines: &Vec<String>) -> World {
     let mut start = Pos { x: 0, y: 0 };
     let content = lines
         .iter()
         .enumerate()
-        .flat_map(|(y, l)| {
+        .map(|(y, l)| {
             l.chars()
                 .enumerate()
                 .map(|(x, c)| {
@@ -211,10 +159,8 @@ fn parse(lines: &Vec<String>) -> Map {
                 .collect::<Vec<Cell>>()
         })
         .collect();
-    return Map {
-        width,
-        height,
-        content,
+    return World {
+        map: Map2D::new(content),
         start,
     };
 }
@@ -229,18 +175,19 @@ enum FindLoopRes {
     ToExplore(Vec<LoopInfo>),
 }
 
-fn explore_one_more_for_loop<'a>(map: &Map, curr_loop: &mut LoopInfo) -> Option<LoopInfo> {
+fn explore_one_more_for_loop<'a>(world: &World, curr_loop: &mut LoopInfo) -> Option<LoopInfo> {
     let curr_pos = curr_loop.all_cells.borrow()[curr_loop.all_cells.borrow().len() - 1].clone();
     let previous_pos = curr_loop.all_cells.borrow()[curr_loop.all_cells.borrow().len() - 2].clone();
-    let curr_cell = map.get(&curr_pos).unwrap();
+    let curr_cell = world.map.get(&curr_pos);
     let next_opt = curr_cell
         .c_type
         .dir_to_explore()
         .iter()
         .filter_map(|dir| {
-            curr_pos
-                .move_by(dir)
-                .filter(|next_pos| !next_pos.eq(&previous_pos) && map.get(&next_pos).filter(|cell| cell.c_type.is_to_explore()).is_some())
+            world
+                .map
+                .move_pos(&curr_pos, dir)
+                .filter(|next_pos| !next_pos.eq(&previous_pos) && world.map.get_opt(&next_pos).filter(|cell| cell.c_type.is_to_explore()).is_some())
         })
         .last();
     if let Some(next) = next_opt {
@@ -249,10 +196,10 @@ fn explore_one_more_for_loop<'a>(map: &Map, curr_loop: &mut LoopInfo) -> Option<
         Some(LoopInfo {
             all_cells: curr_loop.all_cells.clone(),
             total_positive_turns: curr_loop.total_positive_turns
-                + match curr_pos.turn_type(&previous_pos, &next) {
-                    TurnType::ClockWise => 1,
-                    TurnType::CounterClockWise => -1,
-                    TurnType::Strait => 0,
+                + match curr_pos.calc_turn_type(&previous_pos, &next) {
+                    TurnType::ClockWise(_) => 1,
+                    TurnType::CounterClockWise(_) => -1,
+                    TurnType::Strait | TurnType::Opposite => 0,
                 },
         })
     } else {
@@ -260,7 +207,7 @@ fn explore_one_more_for_loop<'a>(map: &Map, curr_loop: &mut LoopInfo) -> Option<
     }
 }
 
-fn explore_one_more(map: &Map, possible_loops: &mut Vec<LoopInfo>) -> FindLoopRes {
+fn explore_one_more(map: &World, possible_loops: &mut Vec<LoopInfo>) -> FindLoopRes {
     let next_loop_infos = possible_loops
         .iter_mut()
         .filter_map(|loop_info| explore_one_more_for_loop(map, loop_info))
@@ -268,7 +215,7 @@ fn explore_one_more(map: &Map, possible_loops: &mut Vec<LoopInfo>) -> FindLoopRe
     if next_loop_infos.len() <= 1 {
         panic!("Not enough loops")
     }
-    
+
     let mut found_results = None;
 
     'outer_loop: for (index, loop_info) in next_loop_infos.iter().enumerate() {
@@ -299,23 +246,26 @@ fn explore_one_more(map: &Map, possible_loops: &mut Vec<LoopInfo>) -> FindLoopRe
     }
 }
 
-fn find_loop(map: &Map) -> LoopInfo {
-    let mut curr_loops = [BOTTOM, TOP, LEFT, RIGHT]
+fn find_loop(world: &World) -> LoopInfo {
+    let mut curr_loops = Direction::ALL_DIRECTIONS_CLOCKWISE
         .iter()
         .filter_map(|dir| {
-            map.start
-                .move_by(dir)
+            world
+                .map
+                .move_pos(&world.start, dir)
                 .filter(|pos| {
-                    map.get(&pos)
-                        .filter(|c| c.c_type.is_to_explore() && c.c_type.can_come_from_start(map, &pos))
+                    world
+                        .map
+                        .get_opt(&pos)
+                        .filter(|c| c.c_type.is_to_explore() && c.c_type.can_come_from_start(world, &pos))
                         .is_some()
                 })
                 .map(|pos| LoopInfo {
                     total_positive_turns: 0,
                     all_cells: Rc::new(RefCell::new(vec![
                         Pos {
-                            x: map.start.x,
-                            y: map.start.y,
+                            x: world.start.x,
+                            y: world.start.y,
                         },
                         pos,
                     ])),
@@ -324,7 +274,7 @@ fn find_loop(map: &Map) -> LoopInfo {
         .collect::<Vec<LoopInfo>>();
 
     loop {
-        match explore_one_more(map, &mut curr_loops) {
+        match explore_one_more(world, &mut curr_loops) {
             FindLoopRes::ToExplore(next_loops) => {
                 curr_loops = next_loops;
             }
@@ -341,47 +291,43 @@ enum PartToFill {
 }
 
 fn get_to_fill(window: &[Pos], is_globally_clock_wise: bool) -> PartToFill {
-    let turn_type = window[1].turn_type(&window[0], &window[2]);
+    let turn_type = window[1].calc_turn_type(&window[0], &window[2]);
     match turn_type {
-        TurnType::Strait => PartToFill::Side,
-        TurnType::ClockWise if is_globally_clock_wise => PartToFill::InnerCorner,
-        TurnType::CounterClockWise if !is_globally_clock_wise => PartToFill::InnerCorner,
+        TurnType::Strait | TurnType::Opposite => PartToFill::Side,
+        TurnType::ClockWise(_) if is_globally_clock_wise => PartToFill::InnerCorner,
+        TurnType::CounterClockWise(_) if !is_globally_clock_wise => PartToFill::InnerCorner,
         _ => PartToFill::OuterCorner,
     }
 }
 
-fn fill_direction(map: &mut Map, pos: &Pos, direction: &DirectionInfo) -> u32 {
-    if let Some(next_pos) = &pos.move_by(&direction) {
-        let done = map.fill(next_pos);
-        if !done {
-            return 0;
-        }
-        return 1
-            + fill_direction(map, next_pos, &TOP)
-            + fill_direction(map, next_pos, &BOTTOM)
-            + fill_direction(map, next_pos, &LEFT)
-            + fill_direction(map, next_pos, &RIGHT);
+fn fill_direction(world: &mut World, pos: &Pos, direction: &DirectionAny) -> u32 {
+    if let Some(next_pos) = world.map.move_pos_anydir(pos, &direction) {
+        world.flood_fill(&next_pos)
+    } else {
+        0
     }
-    return 0;
 }
 
-fn fill(map: &mut Map, window: &[Pos], is_globally_clock_wise: bool) -> u32 {
+fn fill(world: &mut World, window: &[Pos], is_globally_clock_wise: bool) -> u32 {
     let curr = &window[1];
-    let curr_type = map.get(curr).unwrap();
+    let curr_type = world.map.get(curr).c_type;
     let to_fill = get_to_fill(window, is_globally_clock_wise);
     match to_fill {
-        PartToFill::Side => fill_direction(map, curr, &curr_type.c_type.side_dir((&window[0], &window[2]), is_globally_clock_wise)),
-        PartToFill::InnerCorner => fill_direction(map, curr, &curr_type.c_type.inner_dir()),
+        PartToFill::Side => fill_direction(
+            world,
+            curr,
+            curr_type.side_dir(Vec2D::new(&window[0], &window[1]), is_globally_clock_wise),
+        ),
+        PartToFill::InnerCorner => fill_direction(world, curr, curr_type.inner_dir()),
         PartToFill::OuterCorner => curr_type
-            .c_type
             .outer_directions()
             .iter()
-            .map(|dir| fill_direction(map, curr, &dir))
+            .map(|dir| fill_direction(world, curr, &dir))
             .sum(),
     }
 }
 
-fn mark_borders(map: &mut Map, loop_info: &LoopInfo) {
+fn mark_borders(map: &mut World, loop_info: &LoopInfo) {
     loop_info.all_cells.borrow().iter().for_each(|p| map.mark_as_border(p));
 }
 
@@ -389,7 +335,7 @@ pub fn puzzle(context: &Context, lines: &Vec<String>) {
     let mut map = parse(lines);
     let loop_info = find_loop(&map);
     let distance_end_loop = (loop_info.all_cells.borrow().len() as u32).div_euclid(2);
-    
+
     mark_borders(&mut map, &loop_info);
     let filled = loop_info
         .all_cells
@@ -397,5 +343,5 @@ pub fn puzzle(context: &Context, lines: &Vec<String>) {
         .windows(3)
         .map(|window| fill(&mut map, window, loop_info.total_positive_turns > 0))
         .sum();
-    check_result!(context,[distance_end_loop, filled],[80, 6909, 10, 461]);
+    check_result!(context, [distance_end_loop, filled], [80, 6909, 10, 461]);
 }

@@ -1,109 +1,57 @@
 use rustc_hash::FxHashMap;
 
-use crate::{check_result, utils::Context};
-use crate::map2d::Map2D;
+use crate::{
+    check_result,
+    map2d::{Direction, Map2D, Pos},
+    utils::Context,
+};
 #[derive(Debug, PartialEq, Eq)]
 enum CellType {
-    ROCK,
+    ROCK_,
     EMPTY,
     SOLID,
 }
 
-struct Map {
-    content: Vec<Vec<CellType>>,
+struct World {
+    map: Map2D<CellType>,
     nb_rocks_per_row: Vec<u32>,
     nb_rocks_per_column: Vec<u32>,
-    width: usize,
-    height: usize,
 }
 
-struct Pos {
-    x: usize,
-    y: usize,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Direction {
-    UP,
-    DOWN,
-    LEFT,
-    RIGHT,
-}
-
-
-impl Map {
-    fn move_pos(&self, pos: &Pos, dir: &Direction) -> Option<Pos> {
-        match dir {
-            Direction::DOWN => {
-                if pos.y < (self.height - 1) {
-                    Some(Pos { x: pos.x, y: pos.y + 1 })
-                } else {
-                    None
-                }
-            }
-            Direction::UP => {
-                if pos.y > 0 {
-                    Some(Pos { x: pos.x, y: pos.y - 1 })
-                } else {
-                    None
-                }
-            }
-            Direction::LEFT => {
-                if pos.x > 0 {
-                    Some(Pos { x: pos.x - 1, y: pos.y })
-                } else {
-                    None
-                }
-            }
-            Direction::RIGHT => {
-                if pos.x < (self.width - 1) {
-                    Some(Pos { x: pos.x + 1, y: pos.y })
-                } else {
-                    None
-                }
-            }
-        }
-    }
+impl World {
     fn next_empty_block(&self, pos: &Pos, dir: &Direction) -> Option<Pos> {
-        let mut curr_pos = Pos { x: pos.x, y: pos.y };
-        while let Some(new_pos) = self.move_pos(&curr_pos, dir) {
-            if self.content[new_pos.y][new_pos.x] != CellType::EMPTY {
-                break;
-            }
-            curr_pos = new_pos;
-        }
-        return if curr_pos.x == pos.x && curr_pos.y == pos.y {
-            None
-        } else {
-            Some(curr_pos)
-        };
+        self.map
+            .iter_dir(*pos, *dir,true)
+            .skip_while(|curr_pos|  
+                self.map.move_pos(curr_pos,dir).filter(|n| 
+                    *self.map.get(n) == CellType::EMPTY).is_some()
+            )
+            .nth(0)
+            .filter(|empty_pos| empty_pos!=pos)
     }
     fn tilt_one(&mut self, pos: Pos, dir: &Direction) {
-        if self.content[pos.y][pos.x] != CellType::ROCK {
+        if *self.map.get(&pos) != CellType::ROCK_ {
             return;
         }
         if let Some(new_pos) = self.next_empty_block(&pos, dir) {
             self.nb_rocks_per_row[pos.y] -= 1;
             self.nb_rocks_per_column[pos.x] -= 1;
-            self.content[pos.y][pos.x] = CellType::EMPTY;
+            self.map.set(&pos, CellType::EMPTY);
 
             self.nb_rocks_per_row[new_pos.y] += 1;
             self.nb_rocks_per_column[new_pos.x] += 1;
-            self.content[new_pos.y][new_pos.x] = CellType::ROCK;
+            self.map.set(&new_pos, CellType::ROCK_);
         }
     }
 
     fn tilt(&mut self, dir: &Direction) {
-        match dir {
-            Direction::UP => (0..self.height).for_each(|y| (0..self.width).for_each(|x| self.tilt_one(Pos { x, y }, dir))),
-            Direction::DOWN => (0..self.height)
-                .rev()
-                .for_each(|y| (0..self.width).for_each(|x| self.tilt_one(Pos { x, y }, dir))),
-            Direction::LEFT => (0..self.width).for_each(|x| (0..self.height).for_each(|y| self.tilt_one(Pos { x, y }, dir))),
-            Direction::RIGHT => (0..self.width)
-                .rev()
-                .for_each(|x| (0..self.height).for_each(|y| self.tilt_one(Pos { x, y }, dir))),
-        }
+        let dirs = match dir {
+            Direction::UP => [&Direction::DOWN,&Direction::RIGHT],
+            Direction::DOWN => [&Direction::UP,&Direction::RIGHT],
+            Direction::LEFT => [&Direction::RIGHT,&Direction::DOWN],
+            Direction::RIGHT => [&Direction::LEFT,&Direction::DOWN],
+        };
+        self.map.iter_all(&dirs).for_each(|pos|self.tilt_one(pos,dir))
     }
     fn calc_load(array: &Vec<u32>) -> u32 {
         return array
@@ -113,14 +61,14 @@ impl Map {
             .fold(0, |sum, (index, val)| sum + val * (array.len() - index) as u32);
     }
     fn calc_load_up(&self) -> u32 {
-        return Map::calc_load(&self.nb_rocks_per_row);
+        return World::calc_load(&self.nb_rocks_per_row);
     }
     fn calc_load_left(&self) -> u32 {
-        return Map::calc_load(&self.nb_rocks_per_column);
+        return World::calc_load(&self.nb_rocks_per_column);
     }
 }
 
-fn parse(lines: &Vec<String>) -> Map {
+fn parse(lines: &Vec<String>) -> World {
     let mut nb_rocks_per_row: Vec<u32> = vec![0; lines.len()];
     let mut nb_rocks_per_column: Vec<u32> = vec![0; lines[0].len()];
     let content = lines
@@ -132,10 +80,10 @@ fn parse(lines: &Vec<String>) -> Map {
                 .map(|(x, c_str)| {
                     let c: CellType = match c_str {
                         '#' => CellType::SOLID,
-                        'O' => CellType::ROCK,
+                        'O' => CellType::ROCK_,
                         _ => CellType::EMPTY,
                     };
-                    if c == CellType::ROCK {
+                    if c == CellType::ROCK_ {
                         nb_rocks_per_row[y] += 1;
                         nb_rocks_per_column[x] += 1;
                     }
@@ -144,16 +92,14 @@ fn parse(lines: &Vec<String>) -> Map {
                 .collect::<Vec<CellType>>()
         })
         .collect::<Vec<Vec<CellType>>>();
-    return Map {
-        content,
-        height: nb_rocks_per_row.len(),
-        width: nb_rocks_per_column.len(),
+    return World {
+        map:Map2D::new(content),
         nb_rocks_per_column,
         nb_rocks_per_row,
     };
 }
 
-fn run_cycle(map: &mut Map, cycle: &mut u32, result_part_1: &mut u32) {
+fn run_cycle(map: &mut World, cycle: &mut u32, result_part_1: &mut u32) {
     for dir in [Direction::UP, Direction::LEFT, Direction::DOWN, Direction::RIGHT] {
         map.tilt(&dir);
         if *cycle == 0 && dir == Direction::UP {
@@ -164,7 +110,6 @@ fn run_cycle(map: &mut Map, cycle: &mut u32, result_part_1: &mut u32) {
 }
 
 pub fn puzzle(context: &Context, lines: &Vec<String>) {
-    let mut map_2d:Map2D<CellType>;
     let mut map = parse(lines);
     let mut cycle = 0;
     let mut result_part_1 = 0;

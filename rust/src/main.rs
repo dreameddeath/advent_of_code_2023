@@ -32,8 +32,8 @@ mod day24;*/
 
 fn main() {
     let start = Instant::now();
-    //let days_restriction:DaysRestriction = &Some(vec![15]);
-    let days_restriction:DaysRestriction = &None;
+    let days_restriction:DaysRestriction = &Some(vec![14]);
+    //let days_restriction:DaysRestriction = &None;
     utils::run_all(&1, &day01::puzzle, RunOption::default(days_restriction));
     utils::run_all(&2, &day02::puzzle, RunOption::default(days_restriction));
     utils::run_all(&3, &day03::puzzle, RunOption::default(days_restriction));
