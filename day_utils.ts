@@ -48,11 +48,12 @@ export function getData(day: number, type: Type, part: Part, logger: Logger): st
     return getRawData(day, type, part, logger).split(/\r?\n/);
 }
 
+type LogMessage = string | string[] | (() => string | string[]);
 export interface Logger {
     isdebug(): boolean,
-    debug(message: string | (() => string)): void,
-    log(message: string | (() => string)): void,
-    error(message: string): void,
+    debug(message: LogMessage): void,
+    log(message: LogMessage): void,
+    error(message: LogMessage): void,
     result<T>(value: T | [T, T], testResult?: T | [T, T] | [T, T, T, T]): void,
 }
 
@@ -150,7 +151,7 @@ export function run<BTAG>(day: number, types: Type[], fct: Solver<BTAG>, parts: 
                         benchedResult.push(doRun(fct, data, part, type, emptyLogger, benchTag));
                     }
                     const total_duration = benchedResult.sortIntuitiveCopy().slice(1, -1).reduce((a, b) => a + b);
-                    const duration =  total_duration / (benchedResult.length - 2);
+                    const duration = total_duration / (benchedResult.length - 2);
                     const benchTypeLabel = benchTag ?? "";
                     logger.log(`Bench ${benchTypeLabel} done in ${total_duration} (agv ${duration} ms)`)
                 }
@@ -165,13 +166,26 @@ export function run<BTAG>(day: number, types: Type[], fct: Solver<BTAG>, parts: 
 
 }
 
+function do_log(iserror: boolean, part: Part, type: Type, input: LogMessage) {
+    const name = Type[type];
+
+    let message = typeof input === "function" ? input() : input;
+    let log_fct = iserror ? console.error : console.log;
+    if (Array.isArray(message)) {
+        log_fct(`[${name}][${part}] ${message[0]}`);
+        message.slice(1).forEach(l => log_fct(l));
+    } else {
+        log_fct(`[${name}][${part}] ${message}`);
+    }
+}
+
 function buildLogger(day: number, debugMode: boolean | undefined, part: Part, type: Type): Logger {
     const name = Type[type];
     return {
         isdebug: debugMode ? (() => true) : (() => false),
-        debug: debugMode ? ((message: string | (() => string)) => console.log(`[${name}][${part}] ${typeof message === "function" ? message() : message}`)) : (() => { }),
-        log: (message: string) => console.log(`[${name}][${part}] ${message}`),
-        error: (message: string) => console.error(`[${name}][${part}] ${message}`),
+        debug: debugMode ? (message: LogMessage) => do_log(false, part, type, message) : (() => { }),
+        log: (message: LogMessage) => do_log(false, part, type, message),
+        error: (message: LogMessage) => do_log(true, part, type, message),
         result: <T>(value: T | [T, T], result?: T | [T, T] | [T, T, T, T]) => {
             const result_value = calcSuccessMessage(part, type, value, result);
             const finalMessage = `[${name}][${part}] RESULT ${result_value} ====>${value}<====`;

@@ -87,8 +87,8 @@ class Day16Map extends World2D.Map2d<Cell>{
         return to_cast
     }
 
-    public empoweredView():string[]{
-        return this.toStringArray((c)=>c.is_empowered?"#":".");
+    public empoweredView(): string[] {
+        return this.toStringArray((c) => c.is_empowered ? "#" : ".");
     }
 
     public shoot_ray(ray: Ray): Ray[] {
@@ -109,7 +109,7 @@ class Day16Map extends World2D.Map2d<Cell>{
         return this.get_next_ray(next_pos, ray.dir);
     }
 
-    public empower(start:Ray): number {
+    public empower(start: Ray): number {
         let rays: Ray[] = [start];
         while (rays.length > 0) {
             rays = rays.flatMap(ray => this.shoot_ray(ray));
@@ -131,20 +131,21 @@ function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
     const data = parse(lines);
     if (part === Part.PART_1) {
         const result = data.empower({ startPos: { x: 0, y: 0 }, dir: World2D.Dir.RIGHT });
+        logger.debug(() => ["Result :\n"].concat(data.empoweredView()));
         logger.result(result, [46, 7951])
     }
     else {
-        let max=-1;
-        const clone_cell:World2D.Clone<Cell>=(c)=>{ return {...c,casted_rays:[]}};
-        max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: 0, y:0 }, dir: World2D.Dir.RIGHT }),max);
-        [...generator(data.height())].forEach((y:number)=>{
-            max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: 0, y }, dir: World2D.Dir.RIGHT }),max);
-            max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: data.width()-1, y }, dir: World2D.Dir.LEFT }),max);
+        let max = -1;
+        const clone_cell: World2D.Clone<Cell> = (c) => { return { ...c, casted_rays: [] } };
+        max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: 0, y: 0 }, dir: World2D.Dir.RIGHT }), max);
+        [...generator(data.height())].forEach((y: number) => {
+            max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: 0, y }, dir: World2D.Dir.RIGHT }), max);
+            max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: data.width() - 1, y }, dir: World2D.Dir.LEFT }), max);
         });
 
-        [...generator(data.width())].forEach((x)=>{
-            max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: x, y: 0 }, dir: World2D.Dir.DOWN }),max);
-            max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: x, y: data.height()-1 }, dir: World2D.Dir.UP }),max);
+        [...generator(data.width())].forEach((x) => {
+            max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: x, y: 0 }, dir: World2D.Dir.DOWN }), max);
+            max = Math.max(new Day16Map(data.cloned_cells(clone_cell)).empower({ startPos: { x: x, y: data.height() - 1 }, dir: World2D.Dir.UP }), max);
         });
         logger.result(max, [51, 8148])
     }

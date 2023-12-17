@@ -2,7 +2,7 @@
 
 use std::ops::{Add, RangeInclusive, Sub};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Pos {
     pub x: usize,
     pub y: usize,
@@ -67,7 +67,7 @@ impl Pos {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Direction {
     UP,
     DOWN,
@@ -107,6 +107,7 @@ impl Direction {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum DirectionAny {
     Simple(Direction),
     Diagonal([Direction; 2]),
@@ -205,6 +206,19 @@ impl<T> Map2D<T> {
             content: content,
         };
     }
+
+    pub fn get_content(&self)->&Vec<Vec<T>>{
+        return &self.content;
+    }
+
+    pub fn height(&self)->usize{
+        return self.height;
+    }
+
+    pub fn width(&self)->usize{
+        return self.width;
+    }
+
     pub fn move_pos(&self, pos: &Pos, dir: &Direction) -> Option<Pos> {
         pos.move_pos(dir, self.height, self.width)
     }
@@ -220,6 +234,27 @@ impl<T> Map2D<T> {
     pub fn is_valid_pos(&self, pos: &Pos) -> bool {
         pos.x < self.width && pos.y < self.width
     }
+
+    pub fn is_border(&self, pos: &Pos) -> bool {
+        self.is_left_border(pos) || self.is_right_border(pos) || self.is_down_border(pos) || self.is_up_border(pos)
+    }
+
+    pub fn is_left_border(&self, pos: &Pos) -> bool {
+        pos.x == 0
+    }
+
+    pub fn is_right_border(&self, pos: &Pos) -> bool {
+        pos.x == self.width - 1
+    }
+
+    pub fn is_up_border(&self, pos: &Pos) -> bool {
+        pos.y == 0
+    }
+
+    pub fn is_down_border(&self, pos: &Pos) -> bool {
+        pos.y == self.height - 1
+    }
+
     pub fn get_opt(&self, pos: &Pos) -> Option<&T> {
         if self.is_valid_pos(pos) {
             Some(self.get(pos))
@@ -248,11 +283,13 @@ impl<T> Map2D<T> {
         self.content[pos.y][pos.x] = new_v;
     }
 
-    pub fn iter_dir(&self, pos: Pos, dir: Direction,start_at_current:bool) -> IterDir {
+    pub fn iter_dir(&self, pos: Pos, dir: Direction, start_at_current: bool) -> IterDir {
         IterDir::new(self, pos, dir, start_at_current)
     }
+    pub fn iter_all_fast(&self)->IterAll{
+        self.iter_all(&[&Direction::RIGHT,&Direction::DOWN]) 
+    }
 
-    
     pub fn iter_all(&self, dirs: &[&Direction; 2]) -> IterAll {
         match dirs[0] {
             Direction::LEFT => match dirs[1] {
@@ -275,6 +312,18 @@ impl<T> Map2D<T> {
                 Direction::RIGHT => IterAll::new(self, true, false, false),
                 _ => panic!("Cannot manage {:?}", dirs),
             },
+        }
+    }
+
+    pub(crate) fn move_to_border(&self, pos: &Pos, dir: &Direction) -> Pos {
+        match dir {
+            Direction::DOWN => Pos {
+                x: pos.x,
+                y: self.height - 1,
+            },
+            Direction::UP => Pos { x: pos.x, y: 0 },
+            Direction::LEFT => Pos { x: 0, y: pos.y },
+            Direction::RIGHT => Pos { x: self.width - 1, y: pos.y },
         }
     }
 }
