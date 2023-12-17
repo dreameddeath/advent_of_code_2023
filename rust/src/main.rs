@@ -2,6 +2,11 @@ use std::time::Instant;
 
 use crate::utils::{RunOption, DaysRestriction,Context};
 
+mod utils;
+mod priority_queue;
+mod map2d;
+
+
 mod day01;
 mod day02;
 mod day03;
@@ -24,8 +29,6 @@ mod day19;
 mod day20;
 mod day23;
 mod day24;*/
-mod utils;
-mod priority_queue;
 
 fn main() {
     let start = Instant::now();

@@ -17,14 +17,18 @@ interface QueueCostSlot<T> {
 export class PriorityQueue<T>{
     private readonly queue: QueueCostSlot<T>[] = [];
     private readonly existingItems: Map<string, number> = new Map()
+    private nb_put:number=0;
+    private nb_put_duplicates:number=0;
     constructor(private getCost: (i: T) => number, private readonly keep_processed_key: boolean = false) {
     }
 
     public put(inputItem: T, key: string | undefined = undefined): number | undefined {
+        this.nb_put++;
         const cost = this.getCost(inputItem);
         if (key) {
             const prefered_duplicate = this.manage_duplicate(cost, key);
             if (prefered_duplicate) {
+                this.nb_put_duplicates++;
                 return prefered_duplicate;
             }
         }
@@ -47,6 +51,10 @@ export class PriorityQueue<T>{
         }
         const newSlot = this.createNewSlot(cost, undefined);
         this.insert_in_slot(newSlot, newItem);
+    }
+
+    public putsCount():number{
+        return this.nb_put;
     }
 
     private createNewSlot(cost: number, pos: number | undefined): QueueCostSlot<T> {

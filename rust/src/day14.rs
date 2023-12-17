@@ -1,10 +1,7 @@
 use rustc_hash::FxHashMap;
 
-use crate::{
-    check_result,
-    utils::Context,
-};
-
+use crate::{check_result, utils::Context};
+use crate::map2d::Map2D;
 #[derive(Debug, PartialEq, Eq)]
 enum CellType {
     ROCK,
@@ -32,6 +29,7 @@ enum Direction {
     LEFT,
     RIGHT,
 }
+
 
 impl Map {
     fn move_pos(&self, pos: &Pos, dir: &Direction) -> Option<Pos> {
@@ -98,9 +96,13 @@ impl Map {
     fn tilt(&mut self, dir: &Direction) {
         match dir {
             Direction::UP => (0..self.height).for_each(|y| (0..self.width).for_each(|x| self.tilt_one(Pos { x, y }, dir))),
-            Direction::DOWN => (0..self.height).rev().for_each(|y| (0..self.width).for_each(|x| self.tilt_one(Pos { x, y }, dir))),
+            Direction::DOWN => (0..self.height)
+                .rev()
+                .for_each(|y| (0..self.width).for_each(|x| self.tilt_one(Pos { x, y }, dir))),
             Direction::LEFT => (0..self.width).for_each(|x| (0..self.height).for_each(|y| self.tilt_one(Pos { x, y }, dir))),
-            Direction::RIGHT => (0..self.width).rev().for_each(|x| (0..self.height).for_each(|y| self.tilt_one(Pos { x, y }, dir))),
+            Direction::RIGHT => (0..self.width)
+                .rev()
+                .for_each(|x| (0..self.height).for_each(|y| self.tilt_one(Pos { x, y }, dir))),
         }
     }
     fn calc_load(array: &Vec<u32>) -> u32 {
@@ -162,17 +164,18 @@ fn run_cycle(map: &mut Map, cycle: &mut u32, result_part_1: &mut u32) {
 }
 
 pub fn puzzle(context: &Context, lines: &Vec<String>) {
+    let mut map_2d:Map2D<CellType>;
     let mut map = parse(lines);
     let mut cycle = 0;
     let mut result_part_1 = 0;
-    let mut history_map:FxHashMap<(u32,u32),u32> = FxHashMap::default();
-    loop{
-        run_cycle(&mut map,&mut cycle,&mut result_part_1);
-        let key = (map.calc_load_left(),map.calc_load_up());
-        if let Some(first_cycle) = history_map.get(&key){
+    let mut history_map: FxHashMap<(u32, u32), u32> = FxHashMap::default();
+    loop {
+        run_cycle(&mut map, &mut cycle, &mut result_part_1);
+        let key = (map.calc_load_left(), map.calc_load_up());
+        if let Some(first_cycle) = history_map.get(&key) {
             let loop_size = cycle - first_cycle;
-            let remaining = (1_000_000_000-first_cycle)%loop_size;
-            for _ in 0..remaining{
+            let remaining = (1_000_000_000 - first_cycle) % loop_size;
+            for _ in 0..remaining {
                 run_cycle(&mut map, &mut cycle, &mut result_part_1);
             }
             break;
@@ -180,5 +183,5 @@ pub fn puzzle(context: &Context, lines: &Vec<String>) {
             history_map.insert(key, cycle);
         }
     }
-    check_result!(context,[result_part_1,map.calc_load_up()],[136, 108955, 64, 106689]);
+    check_result!(context, [result_part_1, map.calc_load_up()], [136, 108955, 64, 106689]);
 }

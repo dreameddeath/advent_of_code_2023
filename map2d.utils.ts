@@ -52,12 +52,7 @@ export namespace World2D {
             }
         }
         public opposite(dir: Dir): Dir {
-            switch (dir) {
-                case Dir.UP: return Dir.DOWN;
-                case Dir.DOWN: return Dir.UP;
-                case Dir.LEFT: return Dir.RIGHT;
-                case Dir.RIGHT: return Dir.LEFT;
-            }
+            return oppositeDir(dir);
         }
         public apply_to_all(x_dir: Dir, y_dir: Dir, fct: (pos: Pos) => void) {
             const all_y = [...generator(this._height)];
@@ -141,7 +136,7 @@ export namespace World2D {
         }
 
         public is_same_pos(pos1: Readonly<Pos>, pos2: Readonly<Pos>): boolean {
-            return pos1.x === pos2.x && pos1.y === pos2.y;
+            return is_same_pos(pos1, pos2);
         }
 
         protected toString(fct: ToString<T>): string {
@@ -173,6 +168,22 @@ export namespace World2D {
 
     export function allDirections(): [Dir, Dir, Dir, Dir] {
         return [Dir.UP, Dir.DOWN, Dir.LEFT, Dir.RIGHT];
+    }
+    export function oppositeDir(dir: Dir): Dir {
+        switch (dir) {
+            case Dir.UP: return Dir.DOWN;
+            case Dir.DOWN: return Dir.UP;
+            case Dir.LEFT: return Dir.RIGHT;
+            case Dir.RIGHT: return Dir.LEFT;
+        }
+    }
+
+    export function array_contains_pos(array: Readonly<Pos>[], pos: Readonly<Pos>) {
+        return array.findIndex(ap => is_same_pos(pos, ap)) >= 0
+    }
+
+    export function is_same_pos(pos1: Readonly<Pos>, pos2: Readonly<Pos>): boolean {
+        return pos1.x === pos2.x && pos1.y === pos2.y;
     }
 
     export type Content<T> = T[][];
