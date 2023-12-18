@@ -41,7 +41,7 @@ impl<C: Ord + PartialOrd, K, T> PartialOrd for Wrapper<C, K, T> {
 }
 
 #[allow(dead_code)]
-pub struct PriorityQueue<C: Ord + Copy + Clone, K: Hash + Copy + Clone, T: Cost<C> + Key<K>> {
+pub struct PriorityQueue<C: Ord + Copy + Clone/*Cost */, K: Hash + Copy + Clone/*Key */, T: Cost<C> + Key<K>/*Type */> {
     best_inserted: FxHashMap<K, C>,
     queue: BinaryHeap<Wrapper<C,K, T>>,
 }

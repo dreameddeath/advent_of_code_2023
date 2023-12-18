@@ -1,6 +1,8 @@
 use std::time::Instant;
 
 use crate::utils::{RunOption, DaysRestriction,Context};
+#[allow(unused_imports)]
+use crate::utils::Part::{Part2,Part1};
 
 mod utils;
 mod priority_queue;
@@ -23,6 +25,7 @@ mod day13;
 mod day14;
 mod day15;
 mod day16;
+mod day17;
 /*mod day14;
 mod day16;
 mod day19;
@@ -32,7 +35,7 @@ mod day24;*/
 
 fn main() {
     let start = Instant::now();
-    //let days_restriction:DaysRestriction = &Some(vec![16]);
+    //let days_restriction:DaysRestriction = &Some(vec![17]);
     let days_restriction:DaysRestriction = &None;
     utils::run_all(&1, &day01::puzzle, RunOption::default(days_restriction));
     utils::run_all(&2, &day02::puzzle, RunOption::default(days_restriction));
@@ -50,6 +53,7 @@ fn main() {
     utils::run_all_simult(&14, &day14::puzzle, RunOption::default(days_restriction));
     utils::run_all(&15, &day15::puzzle, RunOption::default(days_restriction));
     utils::run_all_simult(&16, &day16::puzzle, RunOption::default(days_restriction));
+    utils::run_all(&17, &day17::puzzle, RunOption::default(days_restriction));
     let duration = start.elapsed().as_millis() as u64;
     println!("");
     println!("[ALL] Overall finished in {} ms with {} errors",duration,Context::get_errors());

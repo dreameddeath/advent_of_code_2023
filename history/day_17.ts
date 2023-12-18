@@ -71,7 +71,7 @@ function next_possible_states(state: State, world: World): State[] {
 }
 
 function calc_key(state: State) {
-    return [state.last_pos.x, state.last_pos.y/*, state.nb_total_steps*/, state.dir, state.nb_steps_in_dir].join("|");
+    return [state.last_pos.x, state.last_pos.y, state.dir, state.nb_steps_in_dir].join("|");
 }
 
 function find_path(world: World, logger: Logger): State {
@@ -98,7 +98,7 @@ function find_path(world: World, logger: Logger): State {
             return curr_state;
         }
 
-        -next_possible_states(curr_state, world).forEach(s => {
+        next_possible_states(curr_state, world).forEach(s => {
             if (pQueue.put(s, calc_key(s)) === undefined) {
                 const inserted = pQueue.explored();
                 if (inserted % 10000 === 0) {

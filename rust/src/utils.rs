@@ -87,11 +87,7 @@ fn get_applicable_filename(day: &u8, part: Option<Part>, is_test: &Dataset) -> S
         .unwrap_or_else(|| get_applicable_filename_default(day, is_test));
 }
 
-pub fn read_lines(
-    day: &u8,
-    part: Option<Part>,
-    is_test: &Dataset,
-) -> Option<Lines<BufReader<File>>> {
+pub fn read_lines(day: &u8, part: Option<Part>, is_test: &Dataset) -> Option<Lines<BufReader<File>>> {
     let f = read_lines_internal(get_applicable_filename(day, part, is_test));
 
     return match f {
@@ -143,11 +139,10 @@ pub struct Context {
     is_bench: bool,
     part: Option<Part>,
 }
-static NB_FAILURES:AtomicUsize= AtomicUsize::new(0);
+static NB_FAILURES: AtomicUsize = AtomicUsize::new(0);
 
 #[allow(dead_code)]
 impl Context {
-    
     fn new_part(day: &u8, options: &RunOption, part: Part, data_set: &Dataset) -> Context {
         return Context::new(day, options, Some(part), data_set);
     }
@@ -159,7 +154,13 @@ impl Context {
     fn new(day: &u8, options: &RunOption, part: Option<Part>, data_set: &Dataset) -> Context {
         let log_level = options.get_log_level();
         let is_debug = options.debug.unwrap_or(false);
-        let is_bench = options.mode.map(|m| match m {Mode::BENCH(_)=>true,_=>false}).unwrap_or(false);
+        let is_bench = options
+            .mode
+            .map(|m| match m {
+                Mode::BENCH(_) => true,
+                _ => false,
+            })
+            .unwrap_or(false);
         return Context {
             log_level: log_level,
             day: *day,
@@ -201,11 +202,7 @@ impl Context {
     }
 
     pub fn is_part(&self, part: Part) -> bool {
-        return if let Some(p) = self.part {
-            p == part
-        } else {
-            false
-        };
+        return if let Some(p) = self.part { p == part } else { false };
     }
 
     pub fn is_bench(&self) -> bool {
@@ -228,21 +225,15 @@ impl Context {
             log!(info, self, "Result OK {}", val);
         } else {
             Context::incr_error();
-            log!(
-                error,
-                self,
-                "Result KO >>>{}<<<< instead of {})",
-                val,
-                expected
-            );
+            log!(error, self, "Result KO >>>{}<<<< instead of {})", val, expected);
         }
     }
 
-    fn incr_error(){
-        NB_FAILURES.fetch_add(1,std::sync::atomic::Ordering::Relaxed);
+    fn incr_error() {
+        NB_FAILURES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
-    pub fn get_errors()->usize{
+    pub fn get_errors() -> usize {
         NB_FAILURES.fetch_add(0, std::sync::atomic::Ordering::Relaxed)
     }
 
@@ -323,7 +314,10 @@ pub fn run_simult<F: Fn(&Context, &Vec<String>)>(context: Context, fct: &F, mode
     let lines = to_lines(&context.day, None, &context.data_set);
     let read_duration = start_read.elapsed().as_secs_f32() * 1000.0;
 
-    let nb_max = match *mode { Mode::BENCH(nb)=>nb,_=>1};
+    let nb_max = match *mode {
+        Mode::BENCH(nb) => nb,
+        _ => 1,
+    };
     let start = Instant::now();
     let mut count = 0;
     while count < nb_max {
@@ -353,6 +347,7 @@ pub struct RunOption<'a> {
     active: Option<bool>,
     mode: Option<Mode>,
     debug: Option<bool>,
+    part_restriction: Option<Part>,
     days_restriction: DaysRestriction<'a>,
 }
 
@@ -365,6 +360,7 @@ impl<'a> RunOption<'a> {
             debug: None,
             mode: None,
             active: None,
+            part_restriction: None,
             days_restriction,
         }
     }
@@ -375,6 +371,7 @@ impl<'a> RunOption<'a> {
             debug: None,
             mode: None,
             active: Some(false),
+            part_restriction: None,
             days_restriction: &None,
         }
     }
@@ -384,16 +381,29 @@ impl<'a> RunOption<'a> {
             debug: Some(true),
             mode: self.mode,
             active: self.active,
+            part_restriction: self.part_restriction,
             days_restriction: self.days_restriction,
         }
     }
 
     #[allow(dead_code)]
-    pub fn bench(&self,nb:u16) -> RunOption<'a> {
+    pub fn bench(&self, nb: u16) -> RunOption<'a> {
         RunOption {
             active: self.active,
             mode: Some(Mode::BENCH(nb)),
             debug: self.debug,
+            part_restriction: self.part_restriction,
+            days_restriction: self.days_restriction,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn only(&self, part: Part) -> RunOption<'a> {
+        RunOption {
+            active: self.active,
+            mode: self.mode,
+            debug: self.debug,
+            part_restriction: Some(part),
             days_restriction: self.days_restriction,
         }
     }
@@ -426,6 +436,10 @@ impl<'a> RunOption<'a> {
     fn is_debug(&self) -> bool {
         self.debug.unwrap_or(false)
     }
+
+    fn is_part_enabled(&self, part: Part) -> bool {
+        self.part_restriction.is_none() || self.part_restriction.unwrap() == part
+    }
 }
 
 pub fn run_all<F: Fn(&Context, &Vec<String>)>(day: &u8, fct: &F, options: RunOption) {
@@ -439,32 +453,19 @@ pub fn run_all<F: Fn(&Context, &Vec<String>)>(day: &u8, fct: &F, options: RunOpt
     println!("");
     println!("[Day {}] run per part", day);
     let start = Instant::now();
-
-    run(
-        Context::new_part(day, &options, Part::Part1, &Dataset::Test),
-        &fct,
-        mode,
-    );
-    println!("");
-    run(
-        Context::new_part(day, &options, Part::Part1, &Dataset::Real),
-        &fct,
-        mode,
-    );
-    println!("");
-    run(
-        Context::new_part(day, &options, Part::Part2, &Dataset::Test),
-        &fct,
-        mode,
-    );
-    println!("");
-    run(
-        Context::new_part(day, &options, Part::Part2, &Dataset::Real),
-        &fct,
-        mode,
-    );
+    if options.is_part_enabled(Part::Part1) {
+        run(Context::new_part(day, &options, Part::Part1, &Dataset::Test), &fct, mode);
+        println!("");
+        run(Context::new_part(day, &options, Part::Part1, &Dataset::Real), &fct, mode);
+        println!("");
+    }
+    if options.is_part_enabled(Part::Part2) {
+        run(Context::new_part(day, &options, Part::Part2, &Dataset::Test), &fct, mode);
+        println!("");
+        run(Context::new_part(day, &options, Part::Part2, &Dataset::Real), &fct, mode);
+        println!("");
+    }
     let duration = start.elapsed().as_secs_f32() * 1000.0;
-    println!("");
 
     println!("[Day {}] done in {:.2} ms", day, duration);
 }
