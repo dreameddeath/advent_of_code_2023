@@ -4,6 +4,102 @@ import { generator } from "./utils";
 export namespace World2D {
     export enum Dir { LEFT = "LEFT", RIGHT = "RIGHT", UP = "UP", DOWN = "DOWN" }
     export type Pos = { x: number, y: number }
+    export type Vec = { x: number, y: number }
+    export enum TurnType {
+        OPPOSITE='O',
+        STRAIT='S',
+        CLOCKWISE='C',
+        COUNTERCLOCK_WISE='M'
+    }
+
+
+
+    export function turn_type(dir1: Dir, dir2: Dir): TurnType {
+        if (dir1 == dir2) {
+            return TurnType.STRAIT;
+        }
+        if (dir1 == oppositeDir(dir2)) {
+            return TurnType.OPPOSITE;
+        }
+        switch (dir1) {
+            case Dir.LEFT: return (dir2 == Dir.UP) ? TurnType.CLOCKWISE : TurnType.COUNTERCLOCK_WISE;
+            case Dir.RIGHT: return (dir2 == Dir.UP) ? TurnType.COUNTERCLOCK_WISE : TurnType.CLOCKWISE;
+            case Dir.DOWN: return (dir2 == Dir.LEFT) ? TurnType.CLOCKWISE : TurnType.COUNTERCLOCK_WISE;
+            case Dir.UP: return (dir2 == Dir.LEFT) ? TurnType.COUNTERCLOCK_WISE : TurnType.CLOCKWISE;
+        }
+    }
+
+    export function turn_dir(dir: Dir, turn_type: TurnType): Dir {
+        switch (turn_type) {
+            case TurnType.STRAIT: return dir;
+            case TurnType.OPPOSITE: return oppositeDir(dir);
+            case TurnType.CLOCKWISE:
+                switch (dir) {
+                    case Dir.LEFT: return Dir.UP;
+                    case Dir.UP: return Dir.RIGHT;
+                    case Dir.RIGHT: return Dir.DOWN;
+                    case Dir.DOWN: return Dir.LEFT
+
+                }
+            case TurnType.COUNTERCLOCK_WISE:
+                switch (dir) {
+                    case Dir.LEFT: return Dir.DOWN;
+                    case Dir.DOWN: return Dir.RIGHT;
+                    case Dir.RIGHT: return Dir.UP;
+                    case Dir.UP: return Dir.LEFT
+
+                }
+
+        }
+    }
+
+
+    export class Vec2d {
+        public readonly delta_x: number;
+        public readonly delta_y: number;
+
+        constructor(pos1: Pos, pos2: Pos) {
+            this.delta_x = pos2.x - pos1.x;
+            this.delta_y = pos2.y - pos1.y;
+        }
+
+        public vect_prod(other: Vec2d): number {
+            return this.delta_x * (-other.delta_y) - other.delta_x * (-this.delta_y);
+        }
+
+        public scalar_prod(other: Vec2d): number {
+            return this.delta_x * other.delta_x + other.delta_y * this.delta_y;
+        }
+
+        public turn_type(other: Vec2d): TurnType {
+            const vect_prod = this.vect_prod(other);
+            if (vect_prod == 0) {
+                if (this.scalar_prod(other) > 0) {
+                    return TurnType.STRAIT;
+                } else {
+                    return TurnType.OPPOSITE;
+                }
+            } else if (vect_prod < 0) {
+                return TurnType.CLOCKWISE;
+            } else {
+                return TurnType.COUNTERCLOCK_WISE;
+            }
+        }
+    }
+
+    export function move_pos(pos: Pos, dir: Dir, dist: number = 1): Pos {
+        switch (dir) {
+            case Dir.DOWN:
+                return { x: pos.x, y: pos.y + dist }
+            case Dir.UP:
+                return { x: pos.x, y: pos.y - dist }
+            case Dir.LEFT:
+                return { x: pos.x - dist, y: pos.y }
+            case Dir.RIGHT:
+                return { x: pos.x + dist, y: pos.y }
+        }
+    }
+
 
     export class Map2d<T>{
         private _cells: Content<T>;
@@ -20,36 +116,11 @@ export namespace World2D {
             if (pos === undefined) {
                 return undefined;
             }
-            switch (dir) {
-                case Dir.DOWN:
-                    if (pos.y < (this._height - 1)) {
-                        return { x: pos.x, y: pos.y + 1 }
-                    } else {
-                        return undefined
-                    }
-
-                case Dir.UP:
-                    if (pos.y > 0) {
-                        return { x: pos.x, y: pos.y - 1 }
-                    } else {
-                        return undefined
-                    }
-
-                case Dir.LEFT: {
-                    if (pos.x > 0) {
-                        return { x: pos.x - 1, y: pos.y }
-                    } else {
-                        return undefined;
-                    }
-                }
-                case Dir.RIGHT: {
-                    if (pos.x < (this._width - 1)) {
-                        return { x: pos.x + 1, y: pos.y }
-                    } else {
-                        return undefined;
-                    }
-                }
+            const new_pos = move_pos(pos, dir);
+            if (new_pos.x < 0 || new_pos.x >= this._width || new_pos.y < 0 || new_pos.y >= this._height) {
+                return undefined;
             }
+            return new_pos;
         }
         public opposite(dir: Dir): Dir {
             return oppositeDir(dir);
@@ -84,6 +155,10 @@ export namespace World2D {
                 throw new Error(`Bad position (${pos.x}:${pos.y}) against (w:${this._width},h:${this._height})`)
             }
             return c;
+        }
+
+        public cell_opt(pos: Readonly<Pos>): T|undefined {
+            return this._cells[pos.y]?.[pos.x];
         }
 
         public set_cell(pos: Readonly<Pos>, new_value: T): T {
@@ -193,4 +268,44 @@ export namespace World2D {
     export type MapFct<T, U> = (c: T, pos: Readonly<Pos>, dir: Dir) => U;
     export type Predicate<T> = (c: T, pos: Readonly<Pos>, dir: Dir) => boolean;
     export type PosAndCell<T> = { pos: Pos, cell: T }
+
+
+    export namespace Fill {
+        export enum TurnPartToFill {
+            INNER = 'I',
+            OUTER = 'O',
+            SIDE = 'S'
+        }
+
+        export function part_to_fill(turn_type: TurnType, is_globally_clockwise: boolean): TurnPartToFill {
+            switch (turn_type) {
+                case TurnType.OPPOSITE:
+                case TurnType.STRAIT:
+                    return TurnPartToFill.SIDE;
+                case TurnType.CLOCKWISE: return is_globally_clockwise ? TurnPartToFill.INNER : TurnPartToFill.OUTER;
+                case TurnType.COUNTERCLOCK_WISE: return is_globally_clockwise ? TurnPartToFill.OUTER : TurnPartToFill.INNER;
+            }
+        }
+
+        export function pos_to_fill(pos: Pos, previous_dir: Dir, next_dir: Dir, is_globally_clockwise: boolean): Pos | [Pos, Pos, Pos] {
+            const turn_type = World2D.turn_type(previous_dir, next_dir);
+            const turn_part_to_fill = part_to_fill(turn_type, is_globally_clockwise);
+            switch (turn_part_to_fill) {
+                case TurnPartToFill.SIDE:
+                    return move_pos(pos, turn_dir(next_dir, is_globally_clockwise ? TurnType.CLOCKWISE : TurnType.COUNTERCLOCK_WISE));
+                case TurnPartToFill.INNER: {
+                    const move_before = turn_dir(previous_dir, is_globally_clockwise ? TurnType.CLOCKWISE : TurnType.COUNTERCLOCK_WISE);
+                    const move_after = turn_dir(next_dir, is_globally_clockwise ? TurnType.CLOCKWISE : TurnType.COUNTERCLOCK_WISE);
+                    return move_pos(move_pos(pos, move_before), move_after);
+                }
+                case TurnPartToFill.OUTER: {
+                    const move_before = turn_dir(previous_dir, is_globally_clockwise ? TurnType.CLOCKWISE : TurnType.COUNTERCLOCK_WISE);
+                    const move_after = turn_dir(next_dir, is_globally_clockwise ? TurnType.CLOCKWISE : TurnType.COUNTERCLOCK_WISE);
+                    const externPos = move_pos(move_pos(pos, move_before), move_after);
+                    return [externPos, { x: externPos.x, y: pos.y }, { x: pos.x, y: externPos.y }];
+                }
+            }
+        }
+
+    }
 }
