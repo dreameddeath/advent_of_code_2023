@@ -1,7 +1,7 @@
 import { assert } from "console";
-import { Logger, Part, run, Type } from "./day_utils"
-import { World2D } from "./map2d.utils";
-import { generator } from "./utils";
+import { Logger, Part, run, Type } from "../day_utils"
+import { World2D } from "../map2d.utils";
+import { generator } from "../utils";
 
 
 interface Rule {
