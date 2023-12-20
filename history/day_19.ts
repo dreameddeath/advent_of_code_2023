@@ -204,18 +204,8 @@ function find_ranges(workflowInfo: WorkflowInfo): ItemRange[] {
     return context.accepted
 }
 
-
 function size(range: Range): bigint {
     return BigInt(range.max - range.min + 1);
-}
-
-
-function sum(range: Range): bigint {
-    return size(range) * BigInt(range.max + range.min) / 2n
-}
-
-function count_nb(tot_per_prop: Record<Prop, bigint>, p: Prop): bigint {
-    return ALL_PROPS.filter(k => k !== p).map(k => tot_per_prop[k]).reduce((a, b) => a + b)
 }
 
 function calc_range_item_contrib(range: ItemRange): bigint {
