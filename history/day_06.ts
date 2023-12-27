@@ -26,7 +26,7 @@ function calculateRoots(race: Race): [number, number] {
     return [(race.time - delta) / 2, (race.time + delta) / 2 - Number.MIN_VALUE];
 }
 
-function solvePart1(race: Race): number {
+function solve(race: Race): number {
     const roots = calculateRoots(race);
     const roundedRoots = [Math.ceil(roots[0]), Math.floor(roots[1])];
     const maxTime = Math.min(race.time, (roundedRoots[1] === roots[1]) ? roundedRoots[1] - 1 : roundedRoots[1]);
@@ -37,7 +37,7 @@ function solvePart1(race: Race): number {
 
 function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
     const data = parse(lines, part);
-    const result = data.map(race => solvePart1(race)).reduce((a, b) => a * b, 1);;
+    const result = data.map(race => solve(race)).reduce((a, b) => a * b, 1);;
         
     if (part === Part.PART_1) {
         logger.result(result, [288, 4403592])
