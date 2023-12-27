@@ -17,8 +17,9 @@ interface QueueCostSlot<T> {
 export class PriorityQueue<T>{
     private readonly queue: QueueCostSlot<T>[] = [];
     private readonly existingItems: Map<string, number> = new Map()
-    private nb_put:number=0;
-    private nb_put_duplicates:number=0;
+    private nb_put: number = 0;
+    private nb_put_duplicates: number = 0;
+
     constructor(private getCost: (i: T) => number, private readonly keep_processed_key: boolean = false) {
     }
 
@@ -53,7 +54,7 @@ export class PriorityQueue<T>{
         this.insert_in_slot(newSlot, newItem);
     }
 
-    public putsCount():number{
+    public putsCount(): number {
         return this.nb_put;
     }
 
