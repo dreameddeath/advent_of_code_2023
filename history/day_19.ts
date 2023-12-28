@@ -209,13 +209,6 @@ function size(range: Range): bigint {
 }
 
 function calc_range_item_contrib(range: ItemRange): bigint {
-    const total_per_prop: Record<Prop, bigint> = {
-        a: size(range.a),
-        m: size(range.m),
-        s: size(range.s),
-        x: size(range.x)
-    }
-    //const contrib = ALL_PROPS.map(k => sum(range[k]) * count_nb(total_per_prop, k)).reduce((a, b) => a + b)
     return ALL_PROPS.map(k => size(range[k])).reduce((a, b) => a * b, 1n)
 }
 function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
