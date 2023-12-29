@@ -1,3 +1,5 @@
+import { Logger } from "./day_utils";
+
 export { }
 
 export type BuildAry<T, Res extends unknown[] = []> = T extends Res["length"]
@@ -221,7 +223,7 @@ Array.prototype.sortIntuitive = function <T, U extends bigint | number | string 
  * @param max le nombre max à générer
  * @param min (optionnel) : le numéro min
  */
-export function* generator(max: number,min:number=0): Generator<number> {
+export function* generator(max: number, min: number = 0): Generator<number> {
     let i = min;
     while (i < max) {
         yield (i++)
@@ -280,4 +282,26 @@ export function forceType<O>(input: any, fct: (i: any) => boolean): input is O {
         return false;
     }
     return fct(input);
+}
+
+
+export class PerfTimer {
+    private readonly start = new Date();
+    private constructor() {
+
+    }
+
+    public static init(): PerfTimer {
+        return new PerfTimer()
+    }
+
+    public static run<T>(fct:()=>T):[number,T]{
+        const timer = new PerfTimer();
+        const result = fct();
+        return [timer.time(),result];
+    }
+
+    public time(): number {
+        return (new Date()).getTime() - this.start.getTime();
+    }
 }
