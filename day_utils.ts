@@ -106,20 +106,87 @@ function calcSuccessMessage<T>(part: Part, type: Type, value: T | [T, T], expect
  * - logger : the logger to be used
  * - benchTag : when running in bench mode, provide a tag to change implementation behavior
  */
-export type Solver<BTAG> = (lines: string[], part: Part, type: Type, logger: Logger, benchTag?: BTAG) => void;
+export type Solver<BTAG> = (lines: string[], part: Part, type: Type, logger: Logger, benchTag?: BTAG) => void | Promise<void>;
 
-export function doRun<BTAG>(fct: Solver<BTAG>, data: string[], part: Part, type: Type, logger: Logger, benchTag?: BTAG): number {
+export async function doRun<BTAG>(fct: Solver<BTAG>, data: string[], part: Part, type: Type, logger: Logger, benchTag?: BTAG): Promise<number> {
     const start = new Date();
-    fct(data, part, type, logger, benchTag);
+    let res = fct(data, part, type, logger, benchTag);
+    if (!(res instanceof Promise)) {
+        res = Promise.resolve()
+    }
+    await res;
     return (new Date()).getTime() - start.getTime();
 }
 
 
 let _disableTests = false;
+const _globalStart = new Date();
+let _allrun = false;
+let _beforeRun: Promise<void>[] = [];
 
-export function disableTests() {
-    _disableTests = true;
+
+export function runInAllMode(disableTests: boolean) {
+    _allrun = true;
+    _disableTests = disableTests;
 }
+
+export async function endAll() {
+    await Promise.allSettled(_beforeRun);
+    finalizeAll();
+    process.exit();
+}
+
+function finalizeAll() {
+    const duration = new Date().getTime() - _globalStart.getTime();
+
+    console.log(`\n[Global] All run in ${duration} ms`);
+    let totalFailures = 0;
+    for (let domain in failures) {
+        const domainFailures = failures[domain as keyof typeof failures];
+        if (domainFailures.count > 0) {
+            totalFailures += domainFailures.count;
+            console.error(`[Global] ${domain} Failure(s) : ${domainFailures.count} / ${domainFailures.parts}`);
+        }
+    }
+    if (totalFailures === 0) {
+        console.log(`\n[Global] No errors`);
+    }
+}
+
+export async function internal_run<BTAG>(before: Promise<void>[], day: number, types: Type[], fct: Solver<BTAG>, parts: Part[] = [Part.ALL], opt?: { bench?: number, debug?: boolean, benchTags?: BTAG[] }): Promise<void> {
+    await Promise.all(before);
+    console.log(`[STARTING] Day ${day}`);
+    const start = new Date();
+    for (const part of parts) {
+        for (const type of types) {
+            if (_disableTests && type == Type.TEST) {
+                return;
+            }
+            const logger: Logger = buildLogger(day, opt?.debug, part, type)
+
+            logger.log("Running")
+            const data = getData(day, type, part, logger);
+            if (opt?.bench) {
+                for (const benchTag of opt?.benchTags ?? [undefined]) {
+                    const benchedResult = [];
+                    for (let count = 0; count < opt.bench; count++) {
+                        benchedResult.push(await doRun(fct, data, part, type, emptyLogger, benchTag));
+                    }
+                    const total_duration = benchedResult.sortIntuitiveCopy().slice(1, -1).reduce((a, b) => a + b);
+                    const duration = total_duration / (benchedResult.length - 2);
+                    const benchTypeLabel = benchTag ?? "";
+                    logger.log(`Bench ${benchTypeLabel} done in ${total_duration} (agv ${duration} ms)`)
+                }
+            } else {
+                const duration = await doRun(fct, data, part, type, logger);
+                logger.log(`Done in ${duration} ms`)
+            }
+        }
+    };
+
+    console.log(`[DONE] Day ${day} done in ${(new Date()).getTime() - start.getTime()} ms`);
+}
+
 
 /**
  * Run function for unitary run
@@ -132,38 +199,19 @@ export function disableTests() {
  *          bench(boolean): si vrai mode bench (execution 10 fois puis moyenne en enlevant le résultat le plus rapide et le résultat le plus lent)
  *          benchTags(array): tags à passer à la fonction pour "tunner" le comportement
  */
-export function run<BTAG>(day: number, types: Type[], fct: Solver<BTAG>, parts: Part[] = [Part.ALL], opt?: { bench?: number, debug?: boolean, benchTags?: BTAG[] }): void {
-    console.log(`[STARTING] Day ${day}`);
-    const start = new Date();
-    parts.forEach(part => {
-        types.forEach(type => {
-            if (_disableTests && type == Type.TEST) {
-                return;
-            }
-            const logger: Logger = buildLogger(day, opt?.debug, part, type)
-
-            logger.log("Running")
-            const data = getData(day, type, part, logger);
-            if (opt?.bench) {
-                for (const benchTag of opt?.benchTags ?? [undefined]) {
-                    const benchedResult = [];
-                    for (let count = 0; count < opt.bench; count++) {
-                        benchedResult.push(doRun(fct, data, part, type, emptyLogger, benchTag));
-                    }
-                    const total_duration = benchedResult.sortIntuitiveCopy().slice(1, -1).reduce((a, b) => a + b);
-                    const duration = total_duration / (benchedResult.length - 2);
-                    const benchTypeLabel = benchTag ?? "";
-                    logger.log(`Bench ${benchTypeLabel} done in ${total_duration} (agv ${duration} ms)`)
-                }
-            } else {
-                const duration = doRun(fct, data, part, type, logger);
-                logger.log(`Done in ${duration} ms`)
-            }
-        })
-    });
-
-    console.log(`[DONE] Day ${day} done in ${(new Date()).getTime() - start.getTime()} ms`);
-
+export async function run<BTAG>(day: number, types: Type[], fct: Solver<BTAG>, parts: Part[] = [Part.ALL], opt?: { bench?: number, debug?: boolean, benchTags?: BTAG[] }): Promise<void> {
+    const beforeRunLocal = [..._beforeRun];
+    _beforeRun.push(internal_run(beforeRunLocal, day, types, fct, parts, opt));
+    if (!_allrun) {
+        try {
+            await Promise.all(_beforeRun)
+            process.exit(0);
+        }
+        catch (e) {
+            console.error(e);
+            process.exit(1)
+        }
+    }
 }
 
 function do_log(iserror: boolean, part: Part, type: Type, input: LogMessage) {

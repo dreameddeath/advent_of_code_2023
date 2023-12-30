@@ -1,21 +1,27 @@
-import { connect } from "http2";
-import { Logger, Part, run, Type } from "./day_utils";
+import { Logger, Part, run, Type } from "../day_utils";
+import { Arith, Context, init, IntNum, RatNum } from 'z3-solver';
+
 type Base = number
 type Coord = [Base, Base, Base]
+type CoordBig = [bigint, bigint, bigint]
 type Hailstone = {
+    id: number,
     start_pos: Coord,
+    start_pos_bigint: CoordBig,
     speed: Coord,
     line2D_a: Base,
     line2D_b: Base
 }
 function parse(lines: string[]): Hailstone[] {
-    return lines.map(l => {
+    return lines.map((l, id) => {
         const [positionStr, speedStr] = l.split(" @ ");
         const positions = positionStr.split(", ").map(n => parseInt(n, 10)) as Coord;
         const speeds = speedStr.split(", ").map(n => parseInt(n, 10)) as Coord;
         const a = speeds[1] / speeds[0];
         return {
+            id,
             start_pos: positions,
+            start_pos_bigint: positions.map(p => BigInt(p)) as CoordBig,
             speed: speeds,
             line2D_a: a,
             line2D_b: positions[1] - a * positions[0]
@@ -24,7 +30,7 @@ function parse(lines: string[]): Hailstone[] {
 }
 
 
-function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
+async function puzzle(lines: string[], part: Part, type: Type, logger: Logger): Promise<void> {
     const data = parse(lines);
     if (part === Part.PART_1) {
         const min = type === Type.TEST ? 7 : 200000000000000;
@@ -48,9 +54,33 @@ function puzzle(lines: string[], part: Part, type: Type, logger: Logger): void {
         logger.result(result, [2, 15558]);
     }
     else {
-        const [h1, h2, h3] = data.slice(0, 3);
-        
-        logger.result(0, [47, undefined]);
+        const z3 = await init();
+        const context = z3.Context('main');
+
+        const s = [context.Real.const("px"), context.Real.const("py"), context.Real.const("pz")];
+        const v = [context.Real.const("vx"), context.Real.const("vy"), context.Real.const("vz")];
+        const solver = new context.Solver();
+        const zero = context.Real.val(0);
+        for (const h of data) {
+            const t = context.Real.const(`t${h.id}`);
+            solver.add(context.GT(t, zero));
+            ["x", "y", "z"].forEach((_axis, i) => {
+                solver.add(
+                    context.Eq(context.Sum(context.Real.val(h.start_pos[i]), context.Product(context.Real.val(h.speed[i]), t)),
+                        context.Sum(s[i], context.Product(v[i], t))
+                    )
+                )
+            });
+        }
+        const solver_res = await solver.check();
+        if (solver_res !== "sat") {
+            throw new Error("Cannot find solution");
+        }
+        const model = solver.model();
+        const x = (model.get(s[0]) as RatNum).numerator().value();
+        const y = (model.get(s[1]) as RatNum).numerator().value();
+        const z = (model.get(s[2]) as RatNum).numerator().value();
+        logger.result(x + y + z, [47n, 765636044333842n]);
     }
 }
 
